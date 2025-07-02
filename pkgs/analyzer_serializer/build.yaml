@@ -1,0 +1,28 @@
+targets:
+  $default:
+    builders:
+      analyzer_serializer:element_serializer:
+        enabled: true
+        generate_for:
+          - lib/src/element_serializer.dart
+      analyzer_serializer:type_serializer:
+        enabled: true
+        generate_for:
+          - lib/src/type_serializer.dart
+
+builders:
+  element_serializer:
+    import: "package:analyzer_serializer/builder.dart"
+    builder_factories: ["elementSerializerBuilder"]
+    build_extensions: {".dart": [".element_serializer.g.dart"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]
+
+  type_serializer:
+    import: "package:analyzer_serializer/builder.dart"
+    builder_factories: ["typeSerializerBuilder"]
+    build_extensions: {".dart": [".type_serializer.g.dart"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen|combining_builder"]
