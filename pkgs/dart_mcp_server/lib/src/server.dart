@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 import 'package:process/process.dart';
 
 import 'mixins/analyzer.dart';
+import 'mixins/dart_file_analyzer.dart';
 import 'mixins/dash_cli.dart';
 import 'mixins/dtd.dart';
 import 'mixins/pub.dart';
@@ -27,6 +28,7 @@ final class DartMCPServer extends MCPServer
         RootsTrackingSupport,
         RootsFallbackSupport,
         DartAnalyzerSupport,
+        DartFileAnalyzerSupport,
         DashCliSupport,
         PubSupport,
         PubDevSupport,
