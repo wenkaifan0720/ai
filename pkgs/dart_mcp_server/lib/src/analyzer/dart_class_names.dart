@@ -6,40 +6,26 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/visitor.dart';
-import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
-import 'package:path/path.dart' as path;
 
 import '../utils/sdk.dart';
 
-/// Implementation of the get_dart_class_names tool.
+/// Implementation of the get_dart_class_names tool using a shared analysis collection.
 Future<CallToolResult> getDartClassNames(
   CallToolRequest request,
   SdkSupport sdkSupport,
+  AnalysisContextCollection collection,
 ) async {
   final filePath = request.arguments?['file_path'] as String?;
+
   if (filePath == null) {
     return CallToolResult(
-      content: [TextContent(text: 'Missing required argument `file_path`.')],
+      content: [TextContent(text: 'Missing required argument: file_path')],
       isError: true,
     );
   }
 
   try {
-    final dartSdkPath = sdkSupport.sdk.dartSdkPath;
-    if (dartSdkPath == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Could not find Dart SDK path.')],
-        isError: true,
-      );
-    }
-
-    final collection = AnalysisContextCollection(
-      includedPaths: [path.dirname(filePath)],
-      sdkPath: dartSdkPath,
-      resourceProvider: PhysicalResourceProvider.INSTANCE,
-    );
-
     final context = collection.contextFor(filePath);
     final result = await context.currentSession.getResolvedLibrary(filePath);
 
@@ -50,31 +36,32 @@ Future<CallToolResult> getDartClassNames(
       );
     }
 
-    // Find the specific unit for our file
-    final unit = result.units.firstWhere(
-      (unit) => unit.path == filePath,
-      orElse: () => throw StateError('Unit not found for $filePath'),
-    );
+    final visitor = _ClassNameVisitor();
+    result.element.accept(visitor);
 
-    final classVisitor = _ClassElementVisitor();
-    unit.libraryElement.accept(classVisitor);
-
-    final classNames = classVisitor.classNames;
+    final classNames = visitor.classNames;
+    if (classNames.isEmpty) {
+      return CallToolResult(
+        content: [TextContent(text: 'No classes found in $filePath')],
+      );
+    }
 
     return CallToolResult(
       content: [
-        TextContent(text: 'Class names found: ${classNames.join(', ')}'),
+        TextContent(
+          text: 'Classes found in $filePath:\n${classNames.join('\n')}',
+        ),
       ],
     );
   } on Exception catch (e) {
     return CallToolResult(
-      content: [TextContent(text: 'Failed to analyze file: $e')],
+      content: [TextContent(text: 'Failed to analyze classes: $e')],
       isError: true,
     );
   }
 }
 
-class _ClassElementVisitor extends GeneralizingElementVisitor<void> {
+class _ClassNameVisitor extends GeneralizingElementVisitor<void> {
   final List<String> classNames = [];
 
   @override

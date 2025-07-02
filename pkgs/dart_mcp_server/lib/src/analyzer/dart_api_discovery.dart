@@ -9,17 +9,15 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/visitor.dart';
-import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
-import 'package:path/path.dart' as path;
 
 import '../utils/sdk.dart';
 
-/// Gets available API members for a type - essential for AI code generation
-/// to know what operations are available on objects.
+/// Gets available API members for a type using a shared analysis collection.
 Future<CallToolResult> getAvailableMembers(
   CallToolRequest request,
   SdkSupport sdkSupport,
+  AnalysisContextCollection collection,
 ) async {
   final arguments = request.arguments as Map<String, Object?>;
   final filePath = arguments['file_path'] as String;
@@ -34,20 +32,6 @@ Future<CallToolResult> getAvailableMembers(
   }
 
   try {
-    final dartSdkPath = sdkSupport.sdk.dartSdkPath;
-    if (dartSdkPath == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Could not find Dart SDK path.')],
-        isError: true,
-      );
-    }
-
-    final collection = AnalysisContextCollection(
-      includedPaths: [path.dirname(filePath)],
-      sdkPath: dartSdkPath,
-      resourceProvider: PhysicalResourceProvider.INSTANCE,
-    );
-
     final context = collection.contextFor(filePath);
     final result = await context.currentSession.getResolvedLibrary(filePath);
 

@@ -7,16 +7,15 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/visitor.dart';
 import 'package:analyzer/dart/element/type.dart';
-import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
-import 'package:path/path.dart' as path;
 
 import '../utils/sdk.dart';
 
-/// Implementation of the check_dart_subtype tool.
+/// Implementation of the check_dart_subtype tool using a shared analysis collection.
 Future<CallToolResult> checkDartSubtype(
   CallToolRequest request,
   SdkSupport sdkSupport,
+  AnalysisContextCollection collection,
 ) async {
   final filePath = request.arguments?['file_path'] as String?;
   final subtypeName = request.arguments?['subtype'] as String?;
@@ -34,20 +33,6 @@ Future<CallToolResult> checkDartSubtype(
   }
 
   try {
-    final dartSdkPath = sdkSupport.sdk.dartSdkPath;
-    if (dartSdkPath == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Could not find Dart SDK path.')],
-        isError: true,
-      );
-    }
-
-    final collection = AnalysisContextCollection(
-      includedPaths: [path.dirname(filePath)],
-      sdkPath: dartSdkPath,
-      resourceProvider: PhysicalResourceProvider.INSTANCE,
-    );
-
     final context = collection.contextFor(filePath);
     final result = await context.currentSession.getResolvedLibrary(filePath);
 

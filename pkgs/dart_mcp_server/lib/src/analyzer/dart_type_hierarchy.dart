@@ -6,16 +6,15 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/visitor.dart';
-import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
-import 'package:path/path.dart' as path;
 
 import '../utils/sdk.dart';
 
-/// Implementation of the get_dart_type_hierarchy tool.
+/// Implementation of the get_dart_type_hierarchy tool using a shared analysis collection.
 Future<CallToolResult> getDartTypeHierarchy(
   CallToolRequest request,
   SdkSupport sdkSupport,
+  AnalysisContextCollection collection,
 ) async {
   final filePath = request.arguments?['file_path'] as String?;
   final typeName = request.arguments?['type_name'] as String?;
@@ -30,20 +29,6 @@ Future<CallToolResult> getDartTypeHierarchy(
   }
 
   try {
-    final dartSdkPath = sdkSupport.sdk.dartSdkPath;
-    if (dartSdkPath == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Could not find Dart SDK path.')],
-        isError: true,
-      );
-    }
-
-    final collection = AnalysisContextCollection(
-      includedPaths: [path.dirname(filePath)],
-      sdkPath: dartSdkPath,
-      resourceProvider: PhysicalResourceProvider.INSTANCE,
-    );
-
     final context = collection.contextFor(filePath);
     final result = await context.currentSession.getResolvedLibrary(filePath);
 
@@ -54,14 +39,12 @@ Future<CallToolResult> getDartTypeHierarchy(
       );
     }
 
-    // Find the type
     final typeElement = _findTypeInLibrary(result, typeName);
     if (typeElement == null) {
       return CallToolResult(
         content: [
           TextContent(
-            text:
-                'Type "$typeName" not found. Make sure it\'s defined in $filePath or imported into it.',
+            text: 'Type "$typeName" not found in $filePath or its imports.',
           ),
         ],
         isError: true,

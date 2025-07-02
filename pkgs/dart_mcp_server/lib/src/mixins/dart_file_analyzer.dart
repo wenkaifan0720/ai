@@ -3,51 +3,293 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:io';
 
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
+import 'package:path/path.dart' as path;
 
-import '../analyzer/dart_file_skeleton.dart' as skeleton;
+import '../analyzer/dart_api_discovery.dart' as api_discovery;
 import '../analyzer/dart_class_names.dart' as class_names;
+import '../analyzer/dart_file_skeleton.dart' as skeleton;
+import '../analyzer/dart_implementations_finder.dart' as implementations_finder;
 import '../analyzer/dart_subtype_checker.dart' as subtype_checker;
 import '../analyzer/dart_type_hierarchy.dart' as type_hierarchy;
-import '../analyzer/dart_implementations_finder.dart' as implementations_finder;
 import '../analyzer/dart_uri_converter.dart' as uri_converter;
-import '../analyzer/dart_api_discovery.dart' as api_discovery;
 import '../utils/sdk.dart';
 
 /// Mix this in to any MCPServer to add support for analyzing Dart files.
-base mixin DartFileAnalyzerSupport on ToolsSupport implements SdkSupport {
-  @override
-  FutureOr<InitializeResult> initialize(InitializeRequest request) {
-    registerTool(getDartFileSkeletonTool, skeleton.getDartFileSkeleton);
-    registerTool(
-      getDartClassNamesTool,
-      (request) => class_names.getDartClassNames(request, this),
-    );
-    registerTool(
-      checkDartSubtypeTool,
-      (request) => subtype_checker.checkDartSubtype(request, this),
-    );
-    registerTool(
-      getDartTypeHierarchyTool,
-      (request) => type_hierarchy.getDartTypeHierarchy(request, this),
-    );
-    registerTool(
-      findDartImplementationsTool,
-      (request) =>
-          implementations_finder.findDartImplementations(request, this),
-    );
-    registerTool(
-      convertDartUriTool,
-      (request) => uri_converter.convertDartUri(request, this),
-    );
-    registerTool(
-      getAvailableMembersTool,
-      (request) => api_discovery.getAvailableMembers(request, this),
-    );
+base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
+    implements SdkSupport {
+  /// The persistent analysis context collection
+  AnalysisContextCollection? _analysisCollection;
 
-    return super.initialize(request);
+  /// File watcher for detecting changes
+  StreamSubscription<FileSystemEvent>? _fileWatcher;
+
+  /// Current project roots being analyzed
+  List<String> _currentRoots = [];
+
+  /// Get the current analysis collection, creating it if needed
+  Future<AnalysisContextCollection?> get analysisCollection async {
+    final currentRoots = (await roots).map((r) => r.uri).toList();
+
+    // Check if roots changed - if so, recreate collection
+    if (_analysisCollection == null ||
+        !_listsEqual(_currentRoots, currentRoots)) {
+      await _initializeAnalysisCollection(currentRoots);
+    }
+
+    return _analysisCollection;
   }
+
+  @override
+  FutureOr<InitializeResult> initialize(InitializeRequest request) async {
+    final result = await super.initialize(request);
+
+    // Check if we have the required dependencies
+    if (sdk.dartSdkPath == null) {
+      log(
+        LoggingLevel.warning,
+        'Project analysis requires a Dart SDK but none was given. '
+        'Dart file analysis tools have been disabled.',
+      );
+      return result;
+    }
+
+    if (!supportsRoots) {
+      log(
+        LoggingLevel.warning,
+        'Project analysis requires the "roots" capability which is not '
+        'supported. Dart file analysis tools have been disabled.',
+      );
+      return result;
+    }
+
+    // Register all the tools
+    registerTool(getDartFileSkeletonTool, _getDartFileSkeleton);
+    registerTool(getDartClassNamesTool, _getDartClassNames);
+    registerTool(checkDartSubtypeTool, _checkDartSubtype);
+    registerTool(getDartTypeHierarchyTool, _getDartTypeHierarchy);
+    registerTool(findDartImplementationsTool, _findDartImplementations);
+    registerTool(convertDartUriTool, _convertDartUri);
+    registerTool(getAvailableMembersTool, _getAvailableMembers);
+
+    return result;
+  }
+
+  /// Initialize the analysis collection for the given roots
+  Future<void> _initializeAnalysisCollection(List<String> rootPaths) async {
+    // Clean up existing collection and watcher
+    await _cleanup();
+
+    if (rootPaths.isEmpty) {
+      _analysisCollection = null;
+      _currentRoots = [];
+      return;
+    }
+
+    final dartSdkPath = sdk.dartSdkPath;
+    if (dartSdkPath == null) {
+      _analysisCollection = null;
+      _currentRoots = [];
+      return;
+    }
+
+    try {
+      // Convert root URIs to normalized file paths
+      final normalizedPaths =
+          rootPaths.map((rootUri) {
+            final uri = Uri.parse(rootUri);
+            if (uri.scheme == 'file') {
+              // Convert file URI to path and normalize
+              return path.normalize(uri.toFilePath());
+            } else {
+              // Assume it's already a file path
+              return path.normalize(rootUri);
+            }
+          }).toList();
+
+      // Create new analysis collection
+      _analysisCollection = AnalysisContextCollection(
+        includedPaths: normalizedPaths,
+        sdkPath: dartSdkPath,
+        resourceProvider: PhysicalResourceProvider.INSTANCE,
+      );
+
+      _currentRoots = List.from(rootPaths);
+
+      // Set up file watching for normalized paths
+      await _setupFileWatcher(normalizedPaths);
+
+      log(
+        LoggingLevel.info,
+        'Initialized analysis collection for ${rootPaths.length} roots',
+      );
+    } catch (e) {
+      log(LoggingLevel.error, 'Failed to initialize analysis collection: $e');
+      _analysisCollection = null;
+      _currentRoots = [];
+    }
+  }
+
+  /// Set up file watcher for the given root paths
+  Future<void> _setupFileWatcher(List<String> rootPaths) async {
+    if (rootPaths.isEmpty) return;
+
+    // For simplicity, we'll watch all roots. In a more sophisticated implementation,
+    // we could merge multiple directory watchers.
+    try {
+      // Watch the first root (most common case is single root)
+      final primaryRoot = rootPaths.first;
+      final directory = Directory(primaryRoot);
+
+      if (await directory.exists()) {
+        _fileWatcher = directory
+            .watch(recursive: true)
+            .where((event) => event.path.endsWith('.dart'))
+            .listen(
+              _handleFileChange,
+              onError: (error) {
+                log(LoggingLevel.warning, 'File watcher error: $error');
+              },
+            );
+
+        log(LoggingLevel.debug, 'File watcher initialized for $primaryRoot');
+      }
+    } catch (e) {
+      log(LoggingLevel.warning, 'Failed to set up file watcher: $e');
+    }
+  }
+
+  /// Handle file system changes
+  void _handleFileChange(FileSystemEvent event) async {
+    final collection = _analysisCollection;
+    if (collection == null) return;
+
+    try {
+      final context = collection.contextFor(event.path);
+      context.changeFile(event.path);
+      await context.applyPendingFileChanges();
+
+      log(LoggingLevel.debug, 'Notified analyzer of change: ${event.path}');
+    } catch (e) {
+      log(LoggingLevel.debug, 'Failed to notify file change: $e');
+    }
+  }
+
+  @override
+  Future<void> updateRoots() async {
+    await super.updateRoots();
+
+    // Trigger reinitialization of analysis collection when roots change
+    final newRoots = (await roots).map((r) => r.uri).toList();
+    if (!_listsEqual(_currentRoots, newRoots)) {
+      log(
+        LoggingLevel.info,
+        'Roots changed, reinitializing analysis collection',
+      );
+      await _initializeAnalysisCollection(newRoots);
+    }
+  }
+
+  /// Clean up resources
+  Future<void> _cleanup() async {
+    await _fileWatcher?.cancel();
+    _fileWatcher = null;
+
+    // Note: AnalysisContextCollection doesn't have an explicit dispose method,
+    // but setting it to null allows GC to clean it up
+    _analysisCollection = null;
+  }
+
+  @override
+  Future<void> shutdown() async {
+    await _cleanup();
+    await super.shutdown();
+  }
+
+  /// Helper to compare two lists for equality
+  bool _listsEqual<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  // Tool implementations using shared analysis context
+
+  Future<CallToolResult> _getDartFileSkeleton(CallToolRequest request) async {
+    // This tool doesn't need analysis context, delegate to original implementation
+    return skeleton.getDartFileSkeleton(request);
+  }
+
+  Future<CallToolResult> _getDartClassNames(CallToolRequest request) async {
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      return class_names.getDartClassNames(request, this, collection);
+    });
+  }
+
+  Future<CallToolResult> _checkDartSubtype(CallToolRequest request) async {
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      return subtype_checker.checkDartSubtype(request, this, collection);
+    });
+  }
+
+  Future<CallToolResult> _getDartTypeHierarchy(CallToolRequest request) async {
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      return type_hierarchy.getDartTypeHierarchy(request, this, collection);
+    });
+  }
+
+  Future<CallToolResult> _findDartImplementations(
+    CallToolRequest request,
+  ) async {
+    return implementations_finder.findDartImplementations(request, this);
+  }
+
+  Future<CallToolResult> _convertDartUri(CallToolRequest request) async {
+    return uri_converter.convertDartUri(request, this);
+  }
+
+  Future<CallToolResult> _getAvailableMembers(CallToolRequest request) async {
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      return api_discovery.getAvailableMembers(request, this, collection);
+    });
+  }
+
+  /// Helper method for tools that need analysis context
+  Future<CallToolResult> _withSharedAnalysisContext(
+    CallToolRequest request,
+    Future<CallToolResult> Function(AnalysisContextCollection, String) handler,
+  ) async {
+    final filePath = request.arguments?['file_path'] as String?;
+    if (filePath == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `file_path`.')],
+        isError: true,
+      );
+    }
+
+    final collection = await analysisCollection;
+    if (collection == null) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text:
+                'Analysis collection not available. Make sure roots are set and Dart SDK is available.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    return handler(collection, filePath);
+  }
+
+  // Tool definitions (unchanged from original)
 
   /// Tool for creating a skeleton version of a Dart file with method bodies removed.
   static final getDartFileSkeletonTool = Tool(

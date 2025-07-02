@@ -13,11 +13,24 @@ import '../test_harness.dart';
 
 void main() {
   late TestHarness testHarness;
+  late AppDebugSession debugSession;
 
   // TODO: Use setUpAll, currently this fails due to an apparent TestProcess
   // issue.
   setUp(() async {
     testHarness = await TestHarness.start();
+
+    // Start a debug session to establish the counter_app as a project root
+    // This allows the shared analysis context to be properly initialized
+    debugSession = await testHarness.startDebugSession(
+      p.join('test_fixtures', 'counter_app'),
+      'lib/main.dart',
+      isFlutter: true,
+    );
+  });
+
+  tearDown(() async {
+    await testHarness.stopDebugSession(debugSession);
   });
 
   group('dart file analyzer tools', () {
