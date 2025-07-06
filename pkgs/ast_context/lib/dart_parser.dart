@@ -4,11 +4,12 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 
 /// Parses a Dart file content, removes the body content of all methods/functions,
-/// and optionally skips import directives. Returns the modified string.
+/// and optionally skips import directives and private members. Returns the modified string.
 String parseDartFileSkipMethods(String content,
     {bool skipExpressionBodies = false,
     bool omitSkipComments = false,
-    bool skipImports = false}) {
+    bool skipImports = false,
+    bool skipPrivate = false}) {
   // Parse the Dart code
   final parseResult = parseString(
     content: content,
@@ -18,7 +19,7 @@ String parseDartFileSkipMethods(String content,
   final unit = parseResult.unit;
 
   // Create a visitor to collect all method/function/import nodes
-  final nodeVisitor = _NodeCollectorVisitor();
+  final nodeVisitor = _NodeCollectorVisitor(skipPrivate: skipPrivate);
   unit.accept(nodeVisitor);
 
   // Sort ranges in reverse order to avoid affecting offsets
@@ -31,6 +32,12 @@ String parseDartFileSkipMethods(String content,
   // Replace each method body with empty content
   for (final node in replacements) {
     if (node is MethodDeclaration) {
+      // If skipPrivate is true and this is a private method, remove it entirely
+      if (skipPrivate && _isPrivate(node.name.lexeme)) {
+        result = _removeEntireNode(result, node);
+        continue;
+      }
+
       // Only process block function bodies
       if (node.body is BlockFunctionBody) {
         final body = node.body as BlockFunctionBody;
@@ -89,6 +96,12 @@ String parseDartFileSkipMethods(String content,
         }
       }
     } else if (node is FunctionDeclaration) {
+      // If skipPrivate is true and this is a private function, remove it entirely
+      if (skipPrivate && _isPrivate(node.name.lexeme)) {
+        result = _removeEntireNode(result, node);
+        continue;
+      }
+
       // Only process block function bodies
       if (node.functionExpression.body is BlockFunctionBody) {
         final body = node.functionExpression.body as BlockFunctionBody;
@@ -169,6 +182,21 @@ String parseDartFileSkipMethods(String content,
               result.replaceRange(lineStartOffset, lineEndOffset, replacement);
         }
       }
+    } else if (node is FieldDeclaration) {
+      // If skipPrivate is true and this field contains private variables, remove it entirely
+      if (skipPrivate) {
+        // Check if any of the fields in this declaration are private
+        bool hasPrivateFields = node.fields.variables
+            .any((variable) => _isPrivate(variable.name.lexeme));
+        if (hasPrivateFields) {
+          result = _removeEntireNode(result, node);
+        }
+      }
+    } else if (node is ClassDeclaration) {
+      // If skipPrivate is true and this is a private class, remove it entirely
+      if (skipPrivate && _isPrivate(node.name.lexeme)) {
+        result = _removeEntireNode(result, node);
+      }
     }
   }
 
@@ -191,9 +219,44 @@ int _getLineNumber(String text, int position) {
   return lineCount;
 }
 
+/// Check if a name is private (starts with underscore)
+bool _isPrivate(String name) {
+  return name.startsWith('_');
+}
+
+/// Remove an entire node from the text, including surrounding whitespace
+String _removeEntireNode(String text, AstNode node) {
+  int startOffset = node.offset;
+  int endOffset = node.end;
+
+  if (startOffset < 0 ||
+      endOffset < 0 ||
+      startOffset >= text.length ||
+      endOffset > text.length) {
+    return text;
+  }
+
+  // Find the start of the line containing the node
+  int lineStartOffset = text.lastIndexOf('\n', startOffset) + 1;
+
+  // Find the end of the line containing the node's end, or the next line
+  int lineEndOffset = text.indexOf('\n', endOffset);
+  if (lineEndOffset == -1) {
+    lineEndOffset = text.length; // End of file
+  } else {
+    lineEndOffset = lineEndOffset + 1; // Include the newline itself
+  }
+
+  // Remove the entire line(s)
+  return text.replaceRange(lineStartOffset, lineEndOffset, '');
+}
+
 /// Visitor to collect all method, function, and import declarations
 class _NodeCollectorVisitor extends RecursiveAstVisitor<void> {
   final List<AstNode> nodes = [];
+  final bool skipPrivate;
+
+  _NodeCollectorVisitor({required this.skipPrivate});
 
   @override
   void visitMethodDeclaration(MethodDeclaration node) {
@@ -211,5 +274,26 @@ class _NodeCollectorVisitor extends RecursiveAstVisitor<void> {
   void visitImportDirective(ImportDirective node) {
     nodes.add(node);
     super.visitImportDirective(node);
+  }
+
+  @override
+  void visitFieldDeclaration(FieldDeclaration node) {
+    if (skipPrivate) {
+      // Check if any of the fields in this declaration are private
+      bool hasPrivateFields = node.fields.variables
+          .any((variable) => _isPrivate(variable.name.lexeme));
+      if (hasPrivateFields) {
+        nodes.add(node);
+      }
+    }
+    super.visitFieldDeclaration(node);
+  }
+
+  @override
+  void visitClassDeclaration(ClassDeclaration node) {
+    if (skipPrivate && _isPrivate(node.name.lexeme)) {
+      nodes.add(node);
+    }
+    super.visitClassDeclaration(node);
   }
 }

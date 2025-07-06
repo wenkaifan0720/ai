@@ -14,6 +14,8 @@ executables:
 dependencies:
   args: ^2.7.0
   async: ^2.13.0
+  ast_context:
+    path: ../ast_context
   collection: ^1.19.1
   dart_mcp: ^0.2.2
   dds_service_extensions: ^2.0.1

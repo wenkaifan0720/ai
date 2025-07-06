@@ -4,9 +4,8 @@
 
 import 'dart:io';
 
+import 'package:ast_context/dart_parser.dart';
 import 'package:dart_mcp/server.dart';
-
-import 'dart_parser.dart';
 
 /// Implementation of the get_dart_file_skeleton tool.
 Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
@@ -19,10 +18,11 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
   }
 
   final skipExpressionBodies =
-      request.arguments?['skip_expression_bodies'] as bool? ?? false;
+      request.arguments?['skip_expression_bodies'] as bool? ?? true;
   final omitSkipComments =
-      request.arguments?['omit_skip_comments'] as bool? ?? false;
+      request.arguments?['omit_skip_comments'] as bool? ?? true;
   final skipImports = request.arguments?['skip_imports'] as bool? ?? false;
+  final skipPrivate = request.arguments?['skip_private'] as bool? ?? true;
 
   try {
     final file = File(filePath);
@@ -39,6 +39,7 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
       skipExpressionBodies: skipExpressionBodies,
       omitSkipComments: omitSkipComments,
       skipImports: skipImports,
+      skipPrivate: skipPrivate,
     );
 
     return CallToolResult(
