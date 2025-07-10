@@ -13,8 +13,8 @@ class ArrowTest {
 
       final result =
           parseDartFileSkipMethods(input, skipExpressionBodies: true);
-      expect(result, contains(' => // Expression body skipped (Lines 2-2);'));
-      expect(result, contains(' => // Expression body skipped (Lines 3-3);'));
+      expect(result, contains('{\n  // Lines 2-2 skipped.\n}'));
+      expect(result, contains('{\n  // Lines 3-3 skipped.\n}'));
       expect(result.contains('x * 2'), isFalse); // Original body removed
       expect(result.contains('"Test Name"'), isFalse); // Original body removed
     });
@@ -26,8 +26,8 @@ String greeting() => "Hello";
 ''';
       final result =
           parseDartFileSkipMethods(input, skipExpressionBodies: true);
-      expect(result, contains(' => // Expression body skipped (Lines 1-1);'));
-      expect(result, contains(' => // Expression body skipped (Lines 2-2);'));
+      expect(result, contains('{\n  // Lines 1-1 skipped.\n}'));
+      expect(result, contains('{\n  // Lines 2-2 skipped.\n}'));
       expect(result.contains('x * 2'), isFalse);
       expect(result.contains('"Hello"'), isFalse);
     });
@@ -38,8 +38,7 @@ Future<int> calculateAsync() async => 5;
 ''';
       final result =
           parseDartFileSkipMethods(input, skipExpressionBodies: true);
-      expect(
-          result, contains('async => // Expression body skipped (Lines 1-1);'));
+      expect(result, contains('async {\n  // Lines 1-1 skipped.\n}'));
       expect(result.contains(' 5'), isFalse);
     });
 
@@ -56,7 +55,7 @@ class Mixed {
       final result =
           parseDartFileSkipMethods(input, skipExpressionBodies: true);
       expect(result, contains('{\n  // Lines 2-4 skipped.\n}'));
-      expect(result, contains(' => // Expression body skipped (Lines 5-5);'));
+      expect(result, contains('{\n  // Lines 5-5 skipped.\n}'));
     });
   });
 }

@@ -78,6 +78,7 @@ void main() {
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
+              'skip_comments': false,
             },
           ),
         );
@@ -123,6 +124,7 @@ void main() {
               'skip_expression_bodies': true,
               'omit_skip_comments': false,
               'skip_imports': false,
+              'skip_comments': false,
             },
           ),
         );
@@ -149,6 +151,7 @@ void main() {
               'skip_expression_bodies': false,
               'omit_skip_comments': true,
               'skip_imports': false,
+              'skip_comments': false,
             },
           ),
         );
@@ -176,6 +179,7 @@ void main() {
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': true,
+              'skip_comments': false,
             },
           ),
         );
@@ -183,6 +187,42 @@ void main() {
         expect(result.isError, isNot(true));
         final skeletonText = (result.content.first as TextContent).text;
         expect(skeletonText, isNot(contains('import')));
+      });
+
+      test('works with skip_comments option', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getFileSkeletonTool.name,
+            arguments: {
+              'file_path': testFilePath,
+              'skip_expression_bodies': false,
+              'omit_skip_comments': true,
+              'skip_imports': false,
+              'skip_comments': true,
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        final skeletonText = (result.content.first as TextContent).text;
+
+        // Should not contain any comment syntax
+        expect(skeletonText, isNot(contains('//')));
+        expect(skeletonText, isNot(contains('/*')));
+        expect(skeletonText, isNot(contains('*/')));
+
+        // Should still contain class and method structure
+        expect(skeletonText, contains('class MyApp extends StatelessWidget'));
+        expect(skeletonText, contains('Widget build(BuildContext context)'));
+        expect(skeletonText, contains('void _incrementCounter()'));
       });
 
       test('returns error for missing file', () async {
@@ -194,6 +234,7 @@ void main() {
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
+              'skip_comments': false,
             },
           ),
           expectError: true,
@@ -214,6 +255,7 @@ void main() {
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
+              'skip_comments': false,
             },
           ),
           expectError: true,

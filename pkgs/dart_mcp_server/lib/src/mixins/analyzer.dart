@@ -67,9 +67,13 @@ base mixin DartAnalyzerSupport
 
     if (unsupportedReasons.isEmpty) {
       registerTool(analyzeFilesTool, _analyzeFiles);
-      registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
-      registerTool(signatureHelpTool, _signatureHelp);
-      registerTool(hoverTool, _hover);
+      registerTool(definitionTool, _definition);
+
+      /// I don't find the following tools useful or working properly (e.g. the signature help tool)
+      //registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
+      //registerTool(signatureHelpTool, _signatureHelp);
+      //registerTool(hoverTool, _hover);
+      //registerTool(codeActionTool, _codeAction);
     }
 
     // Don't call any methods on the client until we are fully initialized
@@ -178,6 +182,8 @@ base mixin DartAnalyzerSupport
                     publishDiagnostics:
                         lsp.PublishDiagnosticsClientCapabilities(),
                     signatureHelp: lsp.SignatureHelpClientCapabilities(),
+                    codeAction: lsp.CodeActionClientCapabilities(),
+                    definition: lsp.DefinitionClientCapabilities(),
                   ),
                 ),
               ).toJson(),
@@ -247,10 +253,20 @@ base mixin DartAnalyzerSupport
     final errorResult = await _ensurePrerequisites(request);
     if (errorResult != null) return errorResult;
 
+    // Get the maximum severity level to include (default to 1 = Error only)
+    final maxSeverity =
+        request.arguments?[ParameterNames.maxSeverity] as int? ?? 1;
+
     final messages = <Content>[];
     for (var entry in diagnostics.entries) {
       for (var diagnostic in entry.value) {
+        // Filter by severity level if specified
+        // DiagnosticSeverity: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint
         final diagnosticJson = diagnostic.toJson();
+        final severityValue = diagnosticJson['severity'] as int?;
+        if (severityValue != null && severityValue > maxSeverity) {
+          continue;
+        }
         diagnosticJson[ParameterNames.uri] = entry.key.toString();
         messages.add(TextContent(text: jsonEncode(diagnosticJson)));
       }
@@ -312,6 +328,55 @@ base mixin DartAnalyzerSupport
     final result = await _lspConnection.sendRequest(
       lsp.Method.textDocument_hover.toString(),
       lsp.HoverParams(
+        textDocument: lsp.TextDocumentIdentifier(uri: uri),
+        position: position,
+      ).toJson(),
+    );
+    return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
+  }
+
+  /// Implementation of the [codeActionTool], get available code actions
+  /// (quick fixes, refactoring, etc.) for a given range in a file.
+  Future<CallToolResult> _codeAction(CallToolRequest request) async {
+    final errorResult = await _ensurePrerequisites(request);
+    if (errorResult != null) return errorResult;
+
+    final uri = Uri.parse(request.arguments![ParameterNames.uri] as String);
+    final startLine = request.arguments![ParameterNames.startLine] as int;
+    final startColumn = request.arguments![ParameterNames.startColumn] as int;
+    final endLine = request.arguments![ParameterNames.endLine] as int;
+    final endColumn = request.arguments![ParameterNames.endColumn] as int;
+
+    final range = lsp.Range(
+      start: lsp.Position(line: startLine, character: startColumn),
+      end: lsp.Position(line: endLine, character: endColumn),
+    );
+
+    final result = await _lspConnection.sendRequest(
+      lsp.Method.textDocument_codeAction.toString(),
+      lsp.CodeActionParams(
+        textDocument: lsp.TextDocumentIdentifier(uri: uri),
+        range: range,
+        context: lsp.CodeActionContext(diagnostics: diagnostics[uri] ?? []),
+      ).toJson(),
+    );
+    return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
+  }
+
+  /// Implementation of the [definitionTool], go to the definition of a symbol
+  /// at a given position in a file.
+  Future<CallToolResult> _definition(CallToolRequest request) async {
+    final errorResult = await _ensurePrerequisites(request);
+    if (errorResult != null) return errorResult;
+
+    final uri = Uri.parse(request.arguments![ParameterNames.uri] as String);
+    final position = lsp.Position(
+      line: request.arguments![ParameterNames.line] as int,
+      character: request.arguments![ParameterNames.column] as int,
+    );
+    final result = await _lspConnection.sendRequest(
+      lsp.Method.textDocument_definition.toString(),
+      lsp.DefinitionParams(
         textDocument: lsp.TextDocumentIdentifier(uri: uri),
         position: position,
       ).toJson(),
@@ -407,7 +472,16 @@ base mixin DartAnalyzerSupport
   static final analyzeFilesTool = Tool(
     name: 'analyze_files',
     description: 'Analyzes the entire project for errors.',
-    inputSchema: Schema.object(),
+    inputSchema: Schema.object(
+      properties: {
+        ParameterNames.maxSeverity: Schema.int(
+          description:
+              'Maximum severity level to include in results. '
+              '1 = Error, 2 = Warning, 3 = Information, 4 = Hint. '
+              'Defaults to 1 (Error only).',
+        ),
+      },
+    ),
     annotations: ToolAnnotations(title: 'Analyze projects', readOnlyHint: true),
   );
 
@@ -461,6 +535,28 @@ base mixin DartAnalyzerSupport
   );
 
   @visibleForTesting
+  static final codeActionTool = Tool(
+    name: 'code_action',
+    description:
+        'Get available code actions (quick fixes, refactoring, etc.) for a '
+        'given range in a file. This includes suggestions to fix diagnostics, '
+        'refactor code, or generate code.',
+    inputSchema: _rangeSchema,
+    annotations: ToolAnnotations(title: 'Code actions', readOnlyHint: true),
+  );
+
+  @visibleForTesting
+  static final definitionTool = Tool(
+    name: 'definition',
+    description:
+        'Go to the definition of a symbol at a given cursor position in a file. '
+        'This returns the location(s) where the symbol is defined, which is '
+        'useful for understanding code structure and finding type definitions.',
+    inputSchema: _locationSchema,
+    annotations: ToolAnnotations(title: 'Go to definition', readOnlyHint: true),
+  );
+
+  @visibleForTesting
   static final noRootsSetResponse = CallToolResult(
     isError: true,
     content: [
@@ -485,6 +581,32 @@ final _locationSchema = Schema.object(
     ),
   },
   required: [ParameterNames.uri, ParameterNames.line, ParameterNames.column],
+);
+
+/// Common schema for tools that require a file URI and a range.
+final _rangeSchema = Schema.object(
+  properties: {
+    ParameterNames.uri: Schema.string(description: 'The URI of the file.'),
+    ParameterNames.startLine: Schema.int(
+      description: 'The zero-based line number of the start of the range.',
+    ),
+    ParameterNames.startColumn: Schema.int(
+      description: 'The zero-based column number of the start of the range.',
+    ),
+    ParameterNames.endLine: Schema.int(
+      description: 'The zero-based line number of the end of the range.',
+    ),
+    ParameterNames.endColumn: Schema.int(
+      description: 'The zero-based column number of the end of the range.',
+    ),
+  },
+  required: [
+    ParameterNames.uri,
+    ParameterNames.startLine,
+    ParameterNames.startColumn,
+    ParameterNames.endLine,
+    ParameterNames.endColumn,
+  ],
 );
 
 extension on Root {

@@ -10,7 +10,10 @@ extension ParameterNames on Never {
   static const command = 'command';
   static const directory = 'directory';
   static const empty = 'empty';
+  static const endColumn = 'endColumn';
+  static const endLine = 'endLine';
   static const line = 'line';
+  static const maxSeverity = 'maxSeverity';
   static const name = 'name';
   static const packageName = 'packageName';
   static const paths = 'paths';
@@ -20,6 +23,8 @@ extension ParameterNames on Never {
   static const query = 'query';
   static const root = 'root';
   static const roots = 'roots';
+  static const startColumn = 'startColumn';
+  static const startLine = 'startLine';
   static const template = 'template';
   static const testRunnerArgs = 'testRunnerArgs';
   static const uri = 'uri';

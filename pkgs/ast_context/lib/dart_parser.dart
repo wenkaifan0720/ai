@@ -2,6 +2,7 @@ import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/ast/token.dart';
 
 /// Parses a Dart file content, removes the body content of all methods/functions,
 /// and optionally skips import directives and private members. Returns the modified string.
@@ -9,7 +10,8 @@ String parseDartFileSkipMethods(String content,
     {bool skipExpressionBodies = false,
     bool omitSkipComments = false,
     bool skipImports = false,
-    bool skipPrivate = false}) {
+    bool skipPrivate = false,
+    bool skipComments = false}) {
   // Parse the Dart code
   final parseResult = parseString(
     content: content,
@@ -86,11 +88,10 @@ String parseDartFileSkipMethods(String content,
           // Replace the body with a comment showing the line range
           if (omitSkipComments) {
             // Always replace starting from arrow
-            result = result.replaceRange(arrowOffset, endOffset, '=> ;');
+            result = result.replaceRange(arrowOffset, endOffset, '{}');
           } else {
             // Always replace starting from arrow
-            final replacement =
-                '=> // Expression body skipped (Lines $startLine-$endLine);';
+            final replacement = '{\n  // Lines $startLine-$endLine skipped.\n}';
             result = result.replaceRange(arrowOffset, endOffset, replacement);
           }
         }
@@ -151,11 +152,10 @@ String parseDartFileSkipMethods(String content,
           // Replace the body with a comment showing the line range
           if (omitSkipComments) {
             // Always replace starting from arrow
-            result = result.replaceRange(arrowOffset, endOffset, '=> ;');
+            result = result.replaceRange(arrowOffset, endOffset, '{}');
           } else {
             // Always replace starting from arrow
-            final replacement =
-                '=> // Expression body skipped (Lines $startLine-$endLine);';
+            final replacement = '{\n  // Lines $startLine-$endLine skipped.\n}';
             result = result.replaceRange(arrowOffset, endOffset, replacement);
           }
         }
@@ -198,6 +198,11 @@ String parseDartFileSkipMethods(String content,
         result = _removeEntireNode(result, node);
       }
     }
+  }
+
+  // If skipComments is true, do a separate pass to remove comments
+  if (skipComments) {
+    result = _removeComments(result);
   }
 
   return result;
@@ -296,4 +301,74 @@ class _NodeCollectorVisitor extends RecursiveAstVisitor<void> {
     }
     super.visitClassDeclaration(node);
   }
+}
+
+/// Remove all comments from the given Dart code
+String _removeComments(String content) {
+  try {
+    // Parse the content to get tokens
+    final parseResult = parseString(
+      content: content,
+      featureSet: FeatureSet.latestLanguageVersion(),
+    );
+
+    final unit = parseResult.unit;
+    final commentRanges = <_Range>[];
+
+    // Walk through all tokens to find comments
+    var token = unit.beginToken;
+    while (token != null) {
+      // Check for preceding comments
+      Token? commentToken = token.precedingComments;
+      while (commentToken != null) {
+        // Find the start and end of the comment
+        int startOffset = commentToken.offset;
+        int endOffset = commentToken.end;
+
+        // For single-line comments, include the trailing newline if present
+        if (commentToken.lexeme.startsWith('//')) {
+          // Find the next newline character after the comment
+          if (endOffset < content.length) {
+            int newlinePos = content.indexOf('\n', endOffset);
+            if (newlinePos != -1 && newlinePos == endOffset) {
+              endOffset = newlinePos + 1; // Include the newline
+            }
+          }
+        }
+
+        commentRanges.add(_Range(startOffset, endOffset));
+        commentToken = commentToken.next;
+      }
+
+      if (token.isEof) break;
+      token = token.next!;
+    }
+
+    // Sort comment ranges in reverse order to avoid affecting offsets
+    commentRanges.sort((a, b) => b.start.compareTo(a.start));
+
+    // Remove all comments
+    String result = content;
+    for (final range in commentRanges) {
+      // Validate range to avoid errors
+      if (range.start >= 0 &&
+          range.end <= result.length &&
+          range.start <= range.end) {
+        result = result.replaceRange(range.start, range.end, '');
+      }
+    }
+
+    return result;
+  } catch (e) {
+    // If parsing fails, return original content
+    return content;
+  }
+}
+
+/// Represents a range with start and end offsets
+class _Range {
+  final int start;
+  final int end;
+
+  _Range(this.start, this.end);
 }

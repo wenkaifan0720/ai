@@ -21,9 +21,9 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
       request.arguments?['skip_expression_bodies'] as bool? ?? true;
   final omitSkipComments =
       request.arguments?['omit_skip_comments'] as bool? ?? true;
-  final skipImports = request.arguments?['skip_imports'] as bool? ?? false;
   final skipPrivate = request.arguments?['skip_private'] as bool? ?? true;
-
+  final skipComments = request.arguments?['skip_comments'] as bool? ?? true;
+  final skipImports = request.arguments?['skip_imports'] as bool? ?? false;
   try {
     final file = File(filePath);
     if (!await file.exists()) {
@@ -40,6 +40,7 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
       omitSkipComments: omitSkipComments,
       skipImports: skipImports,
       skipPrivate: skipPrivate,
+      skipComments: skipComments,
     );
 
     return CallToolResult(

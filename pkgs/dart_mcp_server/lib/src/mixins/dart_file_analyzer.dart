@@ -2,6 +2,8 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
+// ignore_for_file: lines_longer_than_80_chars, unused_element
+
 import 'dart:async';
 import 'dart:io';
 
@@ -10,13 +12,15 @@ import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:dart_mcp/server.dart';
 import 'package:path/path.dart' as path;
 
-import '../analyzer/dart_api_discovery.dart' as api_discovery;
-import '../analyzer/dart_class_names.dart' as class_names;
+import '../analyzer/dart_element_signature.dart' as element_signature;
 import '../analyzer/dart_file_skeleton.dart' as skeleton;
-import '../analyzer/dart_implementations_finder.dart' as implementations_finder;
-import '../analyzer/dart_subtype_checker.dart' as subtype_checker;
-import '../analyzer/dart_type_hierarchy.dart' as type_hierarchy;
 import '../analyzer/dart_uri_converter.dart' as uri_converter;
+import '../analyzer/need_refactor/dart_api_discovery.dart' as api_discovery;
+import '../analyzer/need_refactor/dart_class_names.dart' as class_names;
+import '../analyzer/need_refactor/dart_implementations_finder.dart'
+    as implementations_finder;
+import '../analyzer/need_refactor/dart_subtype_checker.dart' as subtype_checker;
+import '../analyzer/need_refactor/dart_type_hierarchy.dart' as type_hierarchy;
 import '../utils/sdk.dart';
 
 /// Mix this in to any MCPServer to add support for analyzing Dart files.
@@ -69,12 +73,16 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
 
     // Register all the tools
     registerTool(getDartFileSkeletonTool, _getDartFileSkeleton);
-    registerTool(getDartClassNamesTool, _getDartClassNames);
-    registerTool(checkDartSubtypeTool, _checkDartSubtype);
-    registerTool(getDartTypeHierarchyTool, _getDartTypeHierarchy);
-    registerTool(findDartImplementationsTool, _findDartImplementations);
     registerTool(convertDartUriTool, _convertDartUri);
-    registerTool(getAvailableMembersTool, _getAvailableMembers);
+    registerTool(getSignatureTool, _getSignature);
+    // The commented out tools requires refactoring, because they now use name to find the element
+    // which is ambiguous. We should use the file uri + line + column to find the element.
+
+    // registerTool(getAvailableMembersTool, _getAvailableMembers);
+    // registerTool(getDartClassNamesTool, _getDartClassNames);
+    // registerTool(checkDartSubtypeTool, _checkDartSubtype);
+    // registerTool(getDartTypeHierarchyTool, _getDartTypeHierarchy);
+    // registerTool(findDartImplementationsTool, _findDartImplementations);
 
     return result;
   }
@@ -254,6 +262,53 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     return uri_converter.convertDartUri(request, this);
   }
 
+  Future<CallToolResult> _getSignature(CallToolRequest request) async {
+    final filePath = request.arguments?['file_path'] as String?;
+    final line = request.arguments?['line'] as int?;
+    final column = request.arguments?['column'] as int?;
+
+    if (filePath == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `file_path`.')],
+        isError: true,
+      );
+    }
+
+    if (line == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `line`.')],
+        isError: true,
+      );
+    }
+
+    if (column == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `column`.')],
+        isError: true,
+      );
+    }
+
+    final collection = await analysisCollection;
+    if (collection == null) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text:
+                'Analysis collection not available. Make sure roots are set and Dart SDK is available.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    return element_signature.getElementSignature(
+      collection,
+      filePath,
+      line,
+      column,
+    );
+  }
+
   Future<CallToolResult> _getAvailableMembers(CallToolRequest request) async {
     return _withSharedAnalysisContext(request, (collection, filePath) async {
       return api_discovery.getAvailableMembers(request, this, collection);
@@ -314,6 +369,10 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'skip_imports': Schema.bool(
           description:
               'Whether to remove import directives from the output. Defaults to false.',
+        ),
+        'skip_comments': Schema.bool(
+          description:
+              'Whether to remove all comments from the output. Defaults to false.',
         ),
       },
       required: ['file_path'],
@@ -441,6 +500,29 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         ),
       },
       required: ['file_path', 'type_name'],
+    ),
+  );
+
+  /// Tool for getting the signature of an element at a specific location.
+  static final getSignatureTool = Tool(
+    name: 'get_signature',
+    description:
+        'Gets the signature and detailed information about the element at a specific '
+        'location in a Dart file. This helps AI understand what is at a particular '
+        'position in the code (class, method, variable, etc.) and its properties.',
+    inputSchema: Schema.object(
+      properties: {
+        'file_path': Schema.string(
+          description: 'The absolute path to the Dart file to analyze.',
+        ),
+        'line': Schema.int(
+          description: 'The zero-based line number of the cursor position.',
+        ),
+        'column': Schema.int(
+          description: 'The zero-based column number of the cursor position.',
+        ),
+      },
+      required: ['file_path', 'line', 'column'],
     ),
   );
 }
