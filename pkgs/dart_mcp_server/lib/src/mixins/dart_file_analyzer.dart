@@ -17,8 +17,6 @@ import '../analyzer/dart_file_skeleton.dart' as skeleton;
 import '../analyzer/dart_uri_converter.dart' as uri_converter;
 import '../analyzer/need_refactor/dart_api_discovery.dart' as api_discovery;
 import '../analyzer/need_refactor/dart_class_names.dart' as class_names;
-import '../analyzer/need_refactor/dart_implementations_finder.dart'
-    as implementations_finder;
 import '../analyzer/need_refactor/dart_subtype_checker.dart' as subtype_checker;
 import '../analyzer/need_refactor/dart_type_hierarchy.dart' as type_hierarchy;
 import '../utils/sdk.dart';
@@ -221,7 +219,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   /// Helper to compare two lists for equality
   bool _listsEqual<T>(List<T> a, List<T> b) {
     if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
+    for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
     return true;
@@ -252,61 +250,41 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     });
   }
 
-  Future<CallToolResult> _findDartImplementations(
-    CallToolRequest request,
-  ) async {
-    return implementations_finder.findDartImplementations(request, this);
-  }
-
   Future<CallToolResult> _convertDartUri(CallToolRequest request) async {
-    return uri_converter.convertDartUri(request, this);
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      return uri_converter.convertDartUri(request, this, collection);
+    });
   }
 
   Future<CallToolResult> _getSignature(CallToolRequest request) async {
-    final filePath = request.arguments?['file_path'] as String?;
-    final line = request.arguments?['line'] as int?;
-    final column = request.arguments?['column'] as int?;
+    return _withSharedAnalysisContext(request, (collection, filePath) async {
+      final line = request.arguments?['line'] as int?;
+      final column = request.arguments?['column'] as int?;
+      final getContainingDeclaration =
+          request.arguments?['get_containing_declaration'] as bool? ?? true;
 
-    if (filePath == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `file_path`.')],
-        isError: true,
+      if (line == null) {
+        return CallToolResult(
+          content: [TextContent(text: 'Missing required argument `line`.')],
+          isError: true,
+        );
+      }
+
+      if (column == null) {
+        return CallToolResult(
+          content: [TextContent(text: 'Missing required argument `column`.')],
+          isError: true,
+        );
+      }
+
+      return element_signature.getElementSignature(
+        collection,
+        filePath,
+        line,
+        column,
+        getContainingDeclaration: getContainingDeclaration,
       );
-    }
-
-    if (line == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `line`.')],
-        isError: true,
-      );
-    }
-
-    if (column == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `column`.')],
-        isError: true,
-      );
-    }
-
-    final collection = await analysisCollection;
-    if (collection == null) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text:
-                'Analysis collection not available. Make sure roots are set and Dart SDK is available.',
-          ),
-        ],
-        isError: true,
-      );
-    }
-
-    return element_signature.getElementSignature(
-      collection,
-      filePath,
-      line,
-      column,
-    );
+    });
   }
 
   Future<CallToolResult> _getAvailableMembers(CallToolRequest request) async {
@@ -507,19 +485,21 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
-        'Gets the signature and detailed information about the element at a specific '
-        'location in a Dart file. This helps AI understand what is at a particular '
-        'position in the code (class, method, variable, etc.) and its properties.',
+        'Gets the source code of the element at a specific location in a Dart file.',
     inputSchema: Schema.object(
       properties: {
         'file_path': Schema.string(
           description: 'The absolute path to the Dart file to analyze.',
         ),
         'line': Schema.int(
-          description: 'The zero-based line number of the cursor position.',
+          description: 'The zero-based line number of the position.',
         ),
         'column': Schema.int(
-          description: 'The zero-based column number of the cursor position.',
+          description: 'The zero-based column number of the position.',
+        ),
+        'get_containing_declaration': Schema.bool(
+          description:
+              'Optional. If true, walks up the AST tree to find the containing class, enum, mixin, extension, type alias, function, or top-level variable declaration and returns its signature instead of the element at the specified location.',
         ),
       },
       required: ['file_path', 'line', 'column'],

@@ -27,7 +27,7 @@ Future<AstNode?> getAstNodeAtLocation(
     final normalizedPath = path.normalize(filePath);
 
     // Get the analysis context for this file
-    final analysisContext = collection.contextFor(normalizedPath);
+    final analysisContext = collection.contexts.first;
 
     // Get the resolved library result (includes full library context)
     final libraryResult = await analysisContext.currentSession
@@ -57,8 +57,10 @@ Future<AstNode?> getAstNodeAtLocation(
     }
 
     // Use our simplified node locator to find the most specific node
-    return _locateNode(unitResult.unit, offset);
-  } catch (e) {
+    final node = _locateNode(unitResult.unit, offset);
+
+    return node;
+  } catch (e, stackTrace) {
     return null;
   }
 }
@@ -84,8 +86,10 @@ Future<Element?> getElementAtLocation(
 
     // Use the built-in ElementLocator for robust and comprehensive element
     // extraction
-    return ElementLocator.locate(node);
-  } catch (e) {
+    final element = ElementLocator.locate(node);
+
+    return element;
+  } catch (e, stackTrace) {
     return null;
   }
 }
@@ -94,6 +98,7 @@ Future<Element?> getElementAtLocation(
 int? _getOffsetFromLineColumn(String content, int line, int column) {
   try {
     final lines = content.split('\n');
+
     if (line < 0 || line >= lines.length) {
       return null;
     }

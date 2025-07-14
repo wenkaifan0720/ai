@@ -15,6 +15,7 @@ import '../utils/sdk.dart';
 Future<CallToolResult> convertDartUri(
   CallToolRequest request,
   SdkSupport sdkSupport,
+  AnalysisContextCollection analysisCollection,
 ) async {
   final uri = request.arguments?['uri'] as String?;
   final contextPath = request.arguments?['context_path'] as String?;
@@ -51,20 +52,13 @@ Future<CallToolResult> convertDartUri(
       );
     }
 
-    // Create an analysis context collection to get access to the URI converter
-    final includedPaths =
+    // Determine the appropriate context to use
+    final contextForUri =
         contextPath != null
-            ? [path.dirname(contextPath)]
-            : [Directory.current.path];
+            ? analysisCollection.contextFor(path.dirname(contextPath))
+            : analysisCollection.contexts.first;
 
-    final collection = AnalysisContextCollection(
-      includedPaths: includedPaths,
-      sdkPath: dartSdkPath,
-      resourceProvider: PhysicalResourceProvider.INSTANCE,
-    );
-
-    final context = collection.contextFor(includedPaths.first);
-    final session = context.currentSession;
+    final session = contextForUri.currentSession;
     final uriConverter = session.uriConverter;
 
     // Use the URI converter to convert the URI to a file path
