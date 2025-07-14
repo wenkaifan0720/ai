@@ -17,7 +17,7 @@ final _pool = Pool(10);
 /// The number of results to return for a query.
 // If this should be set higher than 10 we need to implement paging of the
 // http://pub.dev/api/search endpoint.
-final _resultsLimit = 10;
+final _resultsLimit = 5;
 
 /// Mix this in to any MCPServer to add support for doing searches on pub.dev.
 base mixin PubDevSupport on ToolsSupport {
@@ -119,20 +119,20 @@ base mixin PubDevSupport on ToolsSupport {
                     ])
                     case final description?)
                   'description': description,
-                if (dig<String?>(versionListing, [
-                      'latest',
-                      'pubspec',
-                      'homepage',
-                    ])
-                    case final homepage?)
-                  'homepage': homepage,
-                if (dig<String?>(versionListing, [
-                      'latest',
-                      'pubspec',
-                      'repository',
-                    ])
-                    case final repository?)
-                  'repository': repository,
+                // if (dig<String?>(versionListing, [
+                //       'latest',
+                //       'pubspec',
+                //       'homepage',
+                //     ])
+                //     case final homepage?)
+                //   'homepage': homepage,
+                // if (dig<String?>(versionListing, [
+                //       'latest',
+                //       'pubspec',
+                //       'repository',
+                //     ])
+                //     case final repository?)
+                //   'repository': repository,
                 if (dig<String?>(versionListing, [
                       'latest',
                       'pubspec',
@@ -141,29 +141,29 @@ base mixin PubDevSupport on ToolsSupport {
                     case final documentation?)
                   'documentation': documentation,
               },
-              if (libraryDocs.isNotEmpty) ...{'libraries': libraryDocs},
+              //if (libraryDocs.isNotEmpty) ...{'libraries': libraryDocs},
               if (scoreResult != null) ...{
                 'scores': {
                   'pubPoints': dig<int>(scoreResult, ['grantedPoints']),
-                  'maxPubPoints': dig<int>(scoreResult, ['maxPoints']),
+                  // 'maxPubPoints': dig<int>(scoreResult, ['maxPoints']),
                   'likes': dig<int>(scoreResult, ['likeCount']),
-                  'downloadCount': dig<int>(scoreResult, [
-                    'downloadCount30Days',
-                  ]),
+                  // 'downloadCount': dig<int>(scoreResult, [
+                  //   'downloadCount30Days',
+                  // ]),
                 },
                 'topics':
                     dig<List>(
                       scoreResult,
                       ['tags'],
                     ).where((t) => (t as String).startsWith('topic:')).toList(),
-                'licenses':
-                    dig<List>(scoreResult, ['tags'])
-                        .where((t) => (t as String).startsWith('license'))
-                        .toList(),
-                'publisher':
-                    dig<List>(scoreResult, ['tags'])
-                        .where((t) => (t as String).startsWith('publisher:'))
-                        .firstOrNull,
+                // 'licenses':
+                //     dig<List>(scoreResult, ['tags'])
+                //         .where((t) => (t as String).startsWith('license'))
+                //         .toList(),
+                // 'publisher':
+                //     dig<List>(scoreResult, ['tags'])
+                //         .where((t) => (t as String).startsWith('publisher:'))
+                //         .firstOrNull,
               },
             }),
           ),

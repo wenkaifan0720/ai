@@ -28,10 +28,10 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
     } finally {
       // Can't call `supportsRoots` until after `super.initialize`.
       if (supportsRoots && sdk.dartSdkPath != null) {
-        registerTool(dartFixTool, _runDartFixTool);
-        registerTool(dartFormatTool, _runDartFormatTool);
-        registerTool(runTestsTool, _runTests);
-        registerTool(createProjectTool, _runCreateProjectTool);
+        // registerTool(dartFixTool, _runDartFixTool);
+        // registerTool(dartFormatTool, _runDartFormatTool);
+        // registerTool(runTestsTool, _runTests);
+        // registerTool(createProjectTool, _runCreateProjectTool);
       }
     }
   }

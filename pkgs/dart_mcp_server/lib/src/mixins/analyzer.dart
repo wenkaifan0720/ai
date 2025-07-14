@@ -549,11 +549,14 @@ base mixin DartAnalyzerSupport
   static final definitionTool = Tool(
     name: 'definition',
     description:
-        'Go to the definition of a symbol at a given cursor position in a file. '
+        'Get the definition location of a symbol at a given position in a file.'
         'This returns the location(s) where the symbol is defined, which is '
         'useful for understanding code structure and finding type definitions.',
     inputSchema: _locationSchema,
-    annotations: ToolAnnotations(title: 'Go to definition', readOnlyHint: true),
+    annotations: ToolAnnotations(
+      title: 'Find definition location',
+      readOnlyHint: true,
+    ),
   );
 
   @visibleForTesting

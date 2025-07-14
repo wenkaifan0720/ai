@@ -135,19 +135,19 @@ base mixin DartToolingDaemonSupport
 
   @override
   FutureOr<InitializeResult> initialize(InitializeRequest request) async {
-    registerTool(connectTool, _connect);
-    registerTool(getRuntimeErrorsTool, runtimeErrors);
+    // registerTool(connectTool, _connect);
+    // registerTool(getRuntimeErrorsTool, runtimeErrors);
 
     // TODO: these tools should only be registered for Flutter applications, or
     // they should return an error when used against a pure Dart app (or a
     // Flutter app that does not support the operation, e.g. hot reload is not
     // supported in profile mode).
-    registerTool(screenshotTool, takeScreenshot);
-    registerTool(hotReloadTool, hotReload);
-    registerTool(getWidgetTreeTool, widgetTree);
-    registerTool(getSelectedWidgetTool, selectedWidget);
-    registerTool(setWidgetSelectionModeTool, _setWidgetSelectionMode);
-    registerTool(getActiveLocationTool, _getActiveLocation);
+    // registerTool(screenshotTool, takeScreenshot);
+    // registerTool(hotReloadTool, hotReload);
+    // registerTool(getWidgetTreeTool, widgetTree);
+    // registerTool(getSelectedWidgetTool, selectedWidget);
+    // registerTool(setWidgetSelectionModeTool, _setWidgetSelectionMode);
+    // registerTool(getActiveLocationTool, _getActiveLocation);
 
     return super.initialize(request);
   }
