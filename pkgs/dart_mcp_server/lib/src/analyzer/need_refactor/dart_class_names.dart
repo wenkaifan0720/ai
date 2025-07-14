@@ -16,14 +16,18 @@ Future<CallToolResult> getDartClassNames(
   SdkSupport sdkSupport,
   AnalysisContextCollection collection,
 ) async {
-  final filePath = request.arguments?['file_path'] as String?;
+  final uriString = request.arguments?['uri'] as String?;
 
-  if (filePath == null) {
+  if (uriString == null) {
     return CallToolResult(
-      content: [TextContent(text: 'Missing required argument: file_path')],
+      content: [TextContent(text: 'Missing required argument: uri')],
       isError: true,
     );
   }
+
+  // Convert URI to file path
+  final uri = Uri.parse(uriString);
+  final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
   try {
     final context = collection.contextFor(filePath);

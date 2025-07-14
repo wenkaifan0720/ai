@@ -72,7 +72,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     // Register all the tools
     registerTool(getDartFileSkeletonTool, _getDartFileSkeleton);
     registerTool(convertDartUriTool, _convertDartUri);
-    registerTool(getSignatureTool, _getSignature);
+    //registerTool(getSignatureTool, _getSignature);
     // The commented out tools requires refactoring, because they now use name to find the element
     // which is ambiguous. We should use the file uri + line + column to find the element.
 
@@ -298,13 +298,17 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     CallToolRequest request,
     Future<CallToolResult> Function(AnalysisContextCollection, String) handler,
   ) async {
-    final filePath = request.arguments?['file_path'] as String?;
-    if (filePath == null) {
+    final uriString = request.arguments?['uri'] as String?;
+    if (uriString == null) {
       return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `file_path`.')],
+        content: [TextContent(text: 'Missing required argument `uri`.')],
         isError: true,
       );
     }
+
+    // Convert URI to file path
+    final uri = Uri.parse(uriString);
+    final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
     final collection = await analysisCollection;
     if (collection == null) {
@@ -333,8 +337,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'This provides a token-efficient overview of the file structure.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description: 'The absolute path to the Dart file to analyze.',
+        'uri': Schema.string(
+          description: 'The URI of the Dart file to analyze.',
         ),
         'skip_expression_bodies': Schema.bool(
           description:
@@ -353,7 +357,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
               'Whether to remove all comments from the output. Defaults to false.',
         ),
       },
-      required: ['file_path'],
+      required: ['uri'],
     ),
   );
 
@@ -365,11 +369,11 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'in it.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description: 'The absolute path to the Dart file to analyze.',
+        'uri': Schema.string(
+          description: 'The URI of the Dart file to analyze.',
         ),
       },
-      required: ['file_path'],
+      required: ['uri'],
     ),
   );
 
@@ -381,9 +385,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'This performs semantic analysis, not just name matching.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description:
-              'The absolute path to a Dart file containing both types.',
+        'uri': Schema.string(
+          description: 'The URI of a Dart file containing both types.',
         ),
         'subtype': Schema.string(
           description: 'The name of the potential subtype.',
@@ -392,7 +395,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
           description: 'The name of the potential supertype.',
         ),
       },
-      required: ['file_path', 'subtype', 'supertype'],
+      required: ['uri', 'subtype', 'supertype'],
     ),
   );
 
@@ -404,14 +407,14 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'superclasses, implemented interfaces, and mixed-in types.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description: 'The absolute path to a Dart file containing the type.',
+        'uri': Schema.string(
+          description: 'The URI of a Dart file containing the type.',
         ),
         'type_name': Schema.string(
           description: 'The name of the type to analyze.',
         ),
       },
-      required: ['file_path', 'type_name'],
+      required: ['uri', 'type_name'],
     ),
   );
 
@@ -466,8 +469,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'Essential for AI code generation to discover what operations are available on objects.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description: 'The absolute path to a Dart file containing the type.',
+        'uri': Schema.string(
+          description: 'The URI of a Dart file containing the type.',
         ),
         'type_name': Schema.string(
           description: 'The name of the type to analyze.',
@@ -477,7 +480,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
               'Whether to include inherited members from supertypes. Defaults to true.',
         ),
       },
-      required: ['file_path', 'type_name'],
+      required: ['uri', 'type_name'],
     ),
   );
 
@@ -488,8 +491,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'Gets the source code of the element at a specific location in a Dart file.',
     inputSchema: Schema.object(
       properties: {
-        'file_path': Schema.string(
-          description: 'The absolute path to the Dart file to analyze.',
+        'uri': Schema.string(
+          description: 'The URI of the Dart file to analyze.',
         ),
         'line': Schema.int(
           description: 'The zero-based line number of the position.',
@@ -502,7 +505,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
               'Optional. If true, walks up the AST tree to find the containing class, enum, mixin, extension, type alias, function, or top-level variable declaration and returns its signature instead of the element at the specified location.',
         ),
       },
-      required: ['file_path', 'line', 'column'],
+      required: ['uri', 'line', 'column'],
     ),
   );
 }

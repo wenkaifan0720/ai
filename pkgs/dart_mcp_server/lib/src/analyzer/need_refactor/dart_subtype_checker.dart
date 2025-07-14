@@ -17,20 +17,24 @@ Future<CallToolResult> checkDartSubtype(
   SdkSupport sdkSupport,
   AnalysisContextCollection collection,
 ) async {
-  final filePath = request.arguments?['file_path'] as String?;
+  final uriString = request.arguments?['uri'] as String?;
   final subtypeName = request.arguments?['subtype'] as String?;
   final supertypeName = request.arguments?['supertype'] as String?;
 
-  if (filePath == null || subtypeName == null || supertypeName == null) {
+  if (uriString == null || subtypeName == null || supertypeName == null) {
     return CallToolResult(
       content: [
         TextContent(
-          text: 'Missing required arguments: file_path, subtype, supertype',
+          text: 'Missing required arguments: uri, subtype, supertype',
         ),
       ],
       isError: true,
     );
   }
+
+  // Convert URI to file path
+  final uri = Uri.parse(uriString);
+  final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
   try {
     final context = collection.contextFor(filePath);

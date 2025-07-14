@@ -16,17 +16,21 @@ Future<CallToolResult> getDartTypeHierarchy(
   SdkSupport sdkSupport,
   AnalysisContextCollection collection,
 ) async {
-  final filePath = request.arguments?['file_path'] as String?;
+  final uriString = request.arguments?['uri'] as String?;
   final typeName = request.arguments?['type_name'] as String?;
 
-  if (filePath == null || typeName == null) {
+  if (uriString == null || typeName == null) {
     return CallToolResult(
       content: [
-        TextContent(text: 'Missing required arguments: file_path, type_name'),
+        TextContent(text: 'Missing required arguments: uri, type_name'),
       ],
       isError: true,
     );
   }
+
+  // Convert URI to file path
+  final uri = Uri.parse(uriString);
+  final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
   try {
     final context = collection.contextFor(filePath);

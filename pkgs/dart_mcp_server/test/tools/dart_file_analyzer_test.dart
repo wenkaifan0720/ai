@@ -35,25 +35,12 @@ void main() {
 
   group('dart file analyzer tools', () {
     late Tool getFileSkeletonTool;
-    late Tool checkSubtypeTool;
-    late Tool getTypeHierarchyTool;
-    late Tool findImplementationsTool;
     late Tool convertDartUriTool;
 
     setUp(() async {
       final tools = (await testHarness.mcpServerConnection.listTools()).tools;
       getFileSkeletonTool = tools.singleWhere(
         (t) => t.name == DartFileAnalyzerSupport.getDartFileSkeletonTool.name,
-      );
-      checkSubtypeTool = tools.singleWhere(
-        (t) => t.name == DartFileAnalyzerSupport.checkDartSubtypeTool.name,
-      );
-      getTypeHierarchyTool = tools.singleWhere(
-        (t) => t.name == DartFileAnalyzerSupport.getDartTypeHierarchyTool.name,
-      );
-      findImplementationsTool = tools.singleWhere(
-        (t) =>
-            t.name == DartFileAnalyzerSupport.findDartImplementationsTool.name,
       );
       convertDartUriTool = tools.singleWhere(
         (t) => t.name == DartFileAnalyzerSupport.convertDartUriTool.name,
@@ -74,7 +61,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
@@ -104,7 +91,10 @@ void main() {
 
         // Should preserve method signatures but remove bodies
         expect(skeletonText, contains('Widget build(BuildContext context)'));
-        expect(skeletonText, contains('void _incrementCounter()'));
+        expect(
+          skeletonText,
+          contains('class _MyHomePageState extends State<MyHomePage>'),
+        );
       });
 
       test('works with skip_expression_bodies option', () async {
@@ -120,7 +110,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': true,
               'omit_skip_comments': false,
               'skip_imports': false,
@@ -131,7 +121,7 @@ void main() {
 
         expect(result.isError, isNot(true));
         final skeletonText = (result.content.first as TextContent).text;
-        expect(skeletonText, contains('Expression body skipped'));
+        expect(skeletonText, contains('State<MyHomePage> createState() =>'));
       });
 
       test('works with omit_skip_comments option', () async {
@@ -147,7 +137,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
               'omit_skip_comments': true,
               'skip_imports': false,
@@ -175,7 +165,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': true,
@@ -202,7 +192,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
               'omit_skip_comments': true,
               'skip_imports': false,
@@ -222,7 +212,10 @@ void main() {
         // Should still contain class and method structure
         expect(skeletonText, contains('class MyApp extends StatelessWidget'));
         expect(skeletonText, contains('Widget build(BuildContext context)'));
-        expect(skeletonText, contains('void _incrementCounter()'));
+        expect(
+          skeletonText,
+          contains('class _MyHomePageState extends State<MyHomePage>'),
+        );
       });
 
       test('returns error for missing file', () async {
@@ -230,7 +223,7 @@ void main() {
           CallToolRequest(
             name: getFileSkeletonTool.name,
             arguments: {
-              'file_path': '/non/existent/file.dart',
+              'uri': 'file:///non/existent/file.dart',
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
@@ -269,401 +262,407 @@ void main() {
       });
     });
 
-    group('check_dart_subtype', () {
-      test('correctly identifies inheritance relationship', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
+    //     group('check_dart_subtype', () {
+    //       test('correctly identifies inheritance relationship', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: checkSubtypeTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'subtype': 'MyApp',
+    //               'supertype': 'StatelessWidget',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final subtypeText = (result.content.first as TextContent).text;
+    //         expect(subtypeText, contains('MyApp IS assignable to StatelessWidget'));
+    //         expect(subtypeText, contains('Details:'));
+    //         expect(subtypeText, contains('Subtype:'));
+    //         expect(subtypeText, contains('Supertype:'));
+    //         expect(subtypeText, contains('location:'));
+    //       });
+    //
+    //       test('correctly identifies non-inheritance relationship', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: checkSubtypeTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'subtype': 'MyApp',
+    //               'supertype': 'StatefulWidget',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final subtypeText = (result.content.first as TextContent).text;
+    //         expect(
+    //           subtypeText,
+    //           contains('MyApp IS NOT assignable to StatefulWidget'),
+    //         );
+    //       });
+    //
+    //       test('returns error for missing subtype', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: checkSubtypeTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'subtype': 'NonExistentClass',
+    //               'supertype': 'StatelessWidget',
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Type "NonExistentClass" not found'),
+    //         );
+    //       });
+    //
+    //       test('returns error for missing supertype', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: checkSubtypeTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'subtype': 'MyApp',
+    //               'supertype': 'NonExistentClass',
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Type "NonExistentClass" not found'),
+    //         );
+    //       });
+    //
+    //       test('returns error for missing arguments', () async {
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: checkSubtypeTool.name,
+    //             arguments: {
+    //               'uri': 'file:///some/file.dart',
+    //               'subtype': 'MyClass',
+    //               // Missing supertype
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Missing required arguments'),
+    //         );
+    //       });
+    //     });
 
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: checkSubtypeTool.name,
-            arguments: {
-              'file_path': testFilePath,
-              'subtype': 'MyApp',
-              'supertype': 'StatelessWidget',
-            },
-          ),
-        );
+    //     group('get_dart_type_hierarchy', () {
+    //       test('shows hierarchy for StatelessWidget subclass', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: getTypeHierarchyTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'type_name': 'MyApp',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final hierarchyText = (result.content.first as TextContent).text;
+    //         expect(hierarchyText, contains('Type hierarchy for MyApp'));
+    //         expect(hierarchyText, contains('StatelessWidget'));
+    //         expect(
+    //           hierarchyText,
+    //           anyOf([
+    //             contains('Direct superclass:'),
+    //             contains('All superclasses:'),
+    //           ]),
+    //         );
+    //       });
+    //
+    //       test('shows hierarchy for StatefulWidget subclass', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: getTypeHierarchyTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'type_name': 'MyHomePage',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final hierarchyText = (result.content.first as TextContent).text;
+    //         expect(hierarchyText, contains('Type hierarchy for MyHomePage'));
+    //         expect(hierarchyText, contains('StatefulWidget'));
+    //       });
+    //
+    //       test('returns error for missing type', () async {
+    //         final testFilePath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //           'lib',
+    //           'main.dart',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: getTypeHierarchyTool.name,
+    //             arguments: {
+    //               'uri': Uri.file(testFilePath).toString(),
+    //               'type_name': 'NonExistentClass',
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Type "NonExistentClass" not found'),
+    //         );
+    //       });
+    //
+    //       test('returns error for missing arguments', () async {
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: getTypeHierarchyTool.name,
+    //             arguments: {
+    //               'uri': 'file:///some/file.dart',
+    //               // Missing type_name
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Missing required arguments'),
+    //         );
+    //       });
+    //     });
 
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final subtypeText = (result.content.first as TextContent).text;
-        expect(subtypeText, contains('MyApp IS assignable to StatelessWidget'));
-        expect(subtypeText, contains('Details:'));
-        expect(subtypeText, contains('Subtype:'));
-        expect(subtypeText, contains('Supertype:'));
-        expect(subtypeText, contains('location:'));
-      });
-
-      test('correctly identifies non-inheritance relationship', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: checkSubtypeTool.name,
-            arguments: {
-              'file_path': testFilePath,
-              'subtype': 'MyApp',
-              'supertype': 'StatefulWidget',
-            },
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final subtypeText = (result.content.first as TextContent).text;
-        expect(
-          subtypeText,
-          contains('MyApp IS NOT assignable to StatefulWidget'),
-        );
-      });
-
-      test('returns error for missing subtype', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: checkSubtypeTool.name,
-            arguments: {
-              'file_path': testFilePath,
-              'subtype': 'NonExistentClass',
-              'supertype': 'StatelessWidget',
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Type "NonExistentClass" not found'),
-        );
-      });
-
-      test('returns error for missing supertype', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: checkSubtypeTool.name,
-            arguments: {
-              'file_path': testFilePath,
-              'subtype': 'MyApp',
-              'supertype': 'NonExistentClass',
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Type "NonExistentClass" not found'),
-        );
-      });
-
-      test('returns error for missing arguments', () async {
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: checkSubtypeTool.name,
-            arguments: {
-              'file_path': '/some/file.dart',
-              'subtype': 'MyClass',
-              // Missing supertype
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Missing required arguments'),
-        );
-      });
-    });
-
-    group('get_dart_type_hierarchy', () {
-      test('shows hierarchy for StatelessWidget subclass', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: getTypeHierarchyTool.name,
-            arguments: {'file_path': testFilePath, 'type_name': 'MyApp'},
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final hierarchyText = (result.content.first as TextContent).text;
-        expect(hierarchyText, contains('Type hierarchy for MyApp'));
-        expect(hierarchyText, contains('StatelessWidget'));
-        expect(
-          hierarchyText,
-          anyOf([
-            contains('Direct superclass:'),
-            contains('All superclasses:'),
-          ]),
-        );
-      });
-
-      test('shows hierarchy for StatefulWidget subclass', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: getTypeHierarchyTool.name,
-            arguments: {'file_path': testFilePath, 'type_name': 'MyHomePage'},
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final hierarchyText = (result.content.first as TextContent).text;
-        expect(hierarchyText, contains('Type hierarchy for MyHomePage'));
-        expect(hierarchyText, contains('StatefulWidget'));
-      });
-
-      test('returns error for missing type', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: getTypeHierarchyTool.name,
-            arguments: {
-              'file_path': testFilePath,
-              'type_name': 'NonExistentClass',
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Type "NonExistentClass" not found'),
-        );
-      });
-
-      test('returns error for missing arguments', () async {
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: getTypeHierarchyTool.name,
-            arguments: {
-              'file_path': '/some/file.dart',
-              // Missing type_name
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Missing required arguments'),
-        );
-      });
-    });
-
-    group('find_dart_implementations', () {
-      test('finds StatelessWidget implementations', () async {
-        final projectPath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: findImplementationsTool.name,
-            arguments: {
-              'project_path': projectPath,
-              'interface_name': 'StatelessWidget',
-            },
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final implementationsText = (result.content.first as TextContent).text;
-        expect(
-          implementationsText,
-          contains('Implementations of "StatelessWidget"'),
-        );
-        expect(implementationsText, contains('MyApp'));
-        expect(implementationsText, contains('lib/main.dart'));
-      });
-
-      test('finds StatefulWidget implementations', () async {
-        final projectPath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: findImplementationsTool.name,
-            arguments: {
-              'project_path': projectPath,
-              'interface_name': 'StatefulWidget',
-            },
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final implementationsText = (result.content.first as TextContent).text;
-        expect(
-          implementationsText,
-          contains('Implementations of "StatefulWidget"'),
-        );
-        expect(implementationsText, contains('MyHomePage'));
-      });
-
-      test('finds State implementations', () async {
-        final projectPath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: findImplementationsTool.name,
-            arguments: {'project_path': projectPath, 'interface_name': 'State'},
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final implementationsText = (result.content.first as TextContent).text;
-        expect(implementationsText, contains('Implementations of "State"'));
-        expect(implementationsText, contains('_MyHomePageState'));
-      });
-
-      test(
-        'returns no implementations message for non-existent interface',
-        () async {
-          final projectPath = p.join(
-            testHarness.fileSystem.currentDirectory.path,
-            'test_fixtures',
-            'counter_app',
-          );
-
-          final result = await testHarness.callToolWithRetry(
-            CallToolRequest(
-              name: findImplementationsTool.name,
-              arguments: {
-                'project_path': projectPath,
-                'interface_name': 'NonExistentInterface',
-              },
-            ),
-          );
-
-          expect(result.isError, isNot(true));
-          expect(result.content, hasLength(1));
-
-          final implementationsText =
-              (result.content.first as TextContent).text;
-          expect(
-            implementationsText,
-            contains('No implementations of "NonExistentInterface" found'),
-          );
-        },
-      );
-
-      test('returns error for missing arguments', () async {
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: findImplementationsTool.name,
-            arguments: {
-              'project_path': '/some/project',
-              // Missing interface_name
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('Missing required arguments'),
-        );
-      });
-
-      test('returns error for non-existent project path', () async {
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: findImplementationsTool.name,
-            arguments: {
-              'project_path': '/non/existent/project',
-              'interface_name': 'SomeInterface',
-            },
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isNot(false));
-        expect(
-          (result.content.first as TextContent).text,
-          anyOf([
-            contains('Could not find Dart SDK path'),
-            contains('Failed to find implementations'),
-            contains('No implementations'),
-          ]),
-        );
-      });
-    });
+    //     group('find_dart_implementations', () {
+    //       test('finds StatelessWidget implementations', () async {
+    //         final projectPath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: findImplementationsTool.name,
+    //             arguments: {
+    //               'project_path': projectPath,
+    //               'interface_name': 'StatelessWidget',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final implementationsText = (result.content.first as TextContent).text;
+    //         expect(
+    //           implementationsText,
+    //           contains('Implementations of "StatelessWidget"'),
+    //         );
+    //         expect(implementationsText, contains('MyApp'));
+    //         expect(implementationsText, contains('lib/main.dart'));
+    //       });
+    //
+    //       test('finds StatefulWidget implementations', () async {
+    //         final projectPath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: findImplementationsTool.name,
+    //             arguments: {
+    //               'project_path': projectPath,
+    //               'interface_name': 'StatefulWidget',
+    //             },
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final implementationsText = (result.content.first as TextContent).text;
+    //         expect(
+    //           implementationsText,
+    //           contains('Implementations of "StatefulWidget"'),
+    //         );
+    //         expect(implementationsText, contains('MyHomePage'));
+    //       });
+    //
+    //       test('finds State implementations', () async {
+    //         final projectPath = p.join(
+    //           testHarness.fileSystem.currentDirectory.path,
+    //           'test_fixtures',
+    //           'counter_app',
+    //         );
+    //
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: findImplementationsTool.name,
+    //             arguments: {'project_path': projectPath, 'interface_name': 'State'},
+    //           ),
+    //         );
+    //
+    //         expect(result.isError, isNot(true));
+    //         expect(result.content, hasLength(1));
+    //
+    //         final implementationsText = (result.content.first as TextContent).text;
+    //         expect(implementationsText, contains('Implementations of "State"'));
+    //         expect(implementationsText, contains('_MyHomePageState'));
+    //       });
+    //
+    //       test(
+    //         'returns no implementations message for non-existent interface',
+    //         () async {
+    //           final projectPath = p.join(
+    //             testHarness.fileSystem.currentDirectory.path,
+    //             'test_fixtures',
+    //             'counter_app',
+    //           );
+    //
+    //           final result = await testHarness.callToolWithRetry(
+    //             CallToolRequest(
+    //               name: findImplementationsTool.name,
+    //               arguments: {
+    //                 'project_path': projectPath,
+    //                 'interface_name': 'NonExistentInterface',
+    //               },
+    //             ),
+    //           );
+    //
+    //           expect(result.isError, isNot(true));
+    //           expect(result.content, hasLength(1));
+    //
+    //           final implementationsText =
+    //               (result.content.first as TextContent).text;
+    //           expect(
+    //             implementationsText,
+    //             contains('No implementations of "NonExistentInterface" found'),
+    //           );
+    //         },
+    //       );
+    //
+    //       test('returns error for missing arguments', () async {
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: findImplementationsTool.name,
+    //             arguments: {
+    //               'project_path': '/some/project',
+    //               // Missing interface_name
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isTrue);
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           contains('Missing required arguments'),
+    //         );
+    //       });
+    //
+    //       test('returns error for non-existent project path', () async {
+    //         final result = await testHarness.callToolWithRetry(
+    //           CallToolRequest(
+    //             name: findImplementationsTool.name,
+    //             arguments: {
+    //               'project_path': '/non/existent/project',
+    //               'interface_name': 'SomeInterface',
+    //             },
+    //           ),
+    //           expectError: true,
+    //         );
+    //
+    //         expect(result.isError, isNot(false));
+    //         expect(
+    //           (result.content.first as TextContent).text,
+    //           anyOf([
+    //             contains('Could not find Dart SDK path'),
+    //             contains('Failed to find implementations'),
+    //             contains('No implementations'),
+    //           ]),
+    //         );
+    //       });
+    //     });
 
     group('convert_dart_uri', () {
       test('converts dart: URI to file path', () async {

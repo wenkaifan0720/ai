@@ -20,9 +20,13 @@ Future<CallToolResult> getAvailableMembers(
   AnalysisContextCollection collection,
 ) async {
   final arguments = request.arguments as Map<String, Object?>;
-  final filePath = arguments['file_path'] as String;
+  final uriString = arguments['uri'] as String;
   final typeName = arguments['type_name'] as String;
   final includeInherited = arguments['include_inherited'] as bool? ?? true;
+
+  // Convert URI to file path
+  final uri = Uri.parse(uriString);
+  final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
   if (!File(filePath).existsSync()) {
     return CallToolResult(

@@ -54,7 +54,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 10, // Zero-based line number for MyApp class (line 11)
               'column': 6, // Position within "class MyApp"
             },
@@ -85,7 +85,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line':
                   25, // Zero-based line number for MyHomePage class (line 26)
               'column': 6, // Position within "class MyHomePage"
@@ -115,7 +115,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line':
                   34, // Zero-based line number for _MyHomePageState class (line 35)
               'column': 6, // Position within "class _MyHomePageState"
@@ -158,7 +158,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line':
                   14, // Zero-based line number for build method in MyApp (line 15)
               'column': 10, // Position within "Widget build"
@@ -194,7 +194,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line':
                   41, // Zero-based line number for _incrementCounter method (line 42)
               'column': 8,
@@ -228,7 +228,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 35, // Zero-based line number for _counter field (line 36)
               'column': 6, // Position within "int _counter"
               'get_containing_declaration': false,
@@ -259,7 +259,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line':
                   26, // Zero-based line number for MyHomePage constructor (line 27)
               'column': 12, // Position within "const MyHomePage"
@@ -291,7 +291,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 1, // Line with just whitespace or comment
               'column': 0,
             },
@@ -309,7 +309,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': '/nonexistent/file.dart',
+              'uri': 'file:///nonexistent/file.dart',
               'line': 0,
               'column': 0,
             },
@@ -327,7 +327,7 @@ void main() {
             CallToolRequest(
               name: getSignatureTool.name,
               arguments: {
-                'file_path': 'test.dart',
+                'uri': 'file:///test.dart',
                 // Missing line and column
               },
             ),
@@ -354,7 +354,7 @@ void main() {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
             name: getSignatureTool.name,
-            arguments: {'file_path': testFilePath, 'line': -1, 'column': -1},
+            arguments: {'uri': Uri.file(testFilePath).toString(), 'line': -1, 'column': -1},
           ),
         );
 
@@ -378,7 +378,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 10, // MyApp class
               'column': 6,
             },
@@ -408,7 +408,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 10, // MyApp class (public)
               'column': 6,
             },
@@ -426,7 +426,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 35, // _counter field (private)
               'column': 6, // Position within "int _counter"
             },
@@ -456,7 +456,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 14, // build method in MyApp
               'column': 10,
               'get_containing_declaration': true,
@@ -489,7 +489,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 35, // _counter field
               'column': 6,
               'get_containing_declaration': true,
@@ -521,7 +521,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 6, // main function (line 7, 0-based = 6)
               'column': 5,
               'get_containing_declaration': true,
@@ -552,7 +552,7 @@ void main() {
             CallToolRequest(
               name: getSignatureTool.name,
               arguments: {
-                'file_path': testFilePath,
+                'uri': Uri.file(testFilePath).toString(),
                 'line': 0, // import statement area
                 'column': 0,
                 'get_containing_declaration': true,
@@ -581,7 +581,7 @@ void main() {
           CallToolRequest(
             name: getSignatureTool.name,
             arguments: {
-              'file_path': testFilePath,
+              'uri': Uri.file(testFilePath).toString(),
               'line': 14, // build method in MyApp
               'column': 10,
               // get_containing_declaration not specified, should default to true

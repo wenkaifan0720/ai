@@ -9,13 +9,17 @@ import 'package:dart_mcp/server.dart';
 
 /// Implementation of the get_dart_file_skeleton tool.
 Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
-  final filePath = request.arguments?['file_path'] as String?;
-  if (filePath == null) {
+  final uriString = request.arguments?['uri'] as String?;
+  if (uriString == null) {
     return CallToolResult(
-      content: [TextContent(text: 'Missing required argument `file_path`.')],
+      content: [TextContent(text: 'Missing required argument `uri`.')],
       isError: true,
     );
   }
+
+  // Convert URI to file path
+  final uri = Uri.parse(uriString);
+  final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
   final skipExpressionBodies =
       request.arguments?['skip_expression_bodies'] as bool? ?? true;
