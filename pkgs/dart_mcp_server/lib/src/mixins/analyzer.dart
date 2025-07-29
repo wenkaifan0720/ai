@@ -76,7 +76,7 @@ base mixin DartAnalyzerSupport
       //registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
       //registerTool(signatureHelpTool, _signatureHelp);
       //registerTool(hoverTool, _hover);
-      //registerTool(codeActionTool, _codeAction);
+      registerTool(codeActionTool, _codeAction);
     }
 
     // Don't call any methods on the client until we are fully initialized
@@ -105,8 +105,8 @@ base mixin DartAnalyzerSupport
       '--protocol',
       'lsp',
       // Uncomment these to log the analyzer traffic.
-      // '--protocol-traffic-log',
-      // 'language-server-protocol.log',
+      '--protocol-traffic-log',
+      'language-server-protocol.log',
     ]);
     _lspServer.stderr
         .transform(utf8.decoder)
@@ -123,6 +123,10 @@ base mixin DartAnalyzerSupport
             _handleDiagnostics,
           )
           ..registerMethod(r'$/analyzerStatus', _handleAnalyzerStatus)
+          ..registerMethod(
+            'client/registerCapability',
+            _handleRegisterCapability,
+          )
           ..registerFallback((Parameters params) {
             log(
               LoggingLevel.debug,
@@ -185,7 +189,10 @@ base mixin DartAnalyzerSupport
                     publishDiagnostics:
                         lsp.PublishDiagnosticsClientCapabilities(),
                     signatureHelp: lsp.SignatureHelpClientCapabilities(),
-                    codeAction: lsp.CodeActionClientCapabilities(),
+                    codeAction: lsp.CodeActionClientCapabilities(
+                      dynamicRegistration: true,
+                      isPreferredSupport: true,
+                    ),
                     definition: lsp.DefinitionClientCapabilities(),
                   ),
                 ),
@@ -350,6 +357,27 @@ base mixin DartAnalyzerSupport
     final endLine = request.arguments![ParameterNames.endLine] as int;
     final endColumn = request.arguments![ParameterNames.endColumn] as int;
 
+    // First, ensure the document is opened in the LSP server
+    try {
+      final fileContents = await File.fromUri(uri).readAsString();
+      _lspConnection.sendNotification(
+        lsp.Method.textDocument_didOpen.toString(),
+        lsp.DidOpenTextDocumentParams(
+          textDocument: lsp.TextDocumentItem(
+            uri: uri,
+            languageId: 'dart',
+            version: 1,
+            text: fileContents,
+          ),
+        ).toJson(),
+      );
+
+      // Give the server a moment to process the document
+      await Future.delayed(Duration(milliseconds: 100));
+    } catch (e) {
+      log(LoggingLevel.warning, 'Failed to open document in LSP server: $e');
+    }
+
     final range = lsp.Range(
       start: lsp.Position(line: startLine, character: startColumn),
       end: lsp.Position(line: endLine, character: endColumn),
@@ -360,7 +388,15 @@ base mixin DartAnalyzerSupport
       lsp.CodeActionParams(
         textDocument: lsp.TextDocumentIdentifier(uri: uri),
         range: range,
-        context: lsp.CodeActionContext(diagnostics: diagnostics[uri] ?? []),
+        context: lsp.CodeActionContext(
+          diagnostics: diagnostics[uri] ?? [],
+          only: [
+            lsp.CodeActionKind.QuickFix,
+            lsp.CodeActionKind.Refactor,
+            lsp.CodeActionKind.Source,
+            lsp.CodeActionKind.SourceOrganizeImports,
+          ],
+        ),
       ).toJson(),
     );
     return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
@@ -515,6 +551,16 @@ base mixin DartAnalyzerSupport
       'diagnostics':
           diagnosticParams.diagnostics.map((d) => d.toJson()).toList(),
     });
+  }
+
+  /// Handles `client/registerCapability` requests from the server.
+  /// The server uses this to dynamically register capabilities like code actions.
+  void _handleRegisterCapability(Parameters params) {
+    log(
+      LoggingLevel.debug,
+      'Received capability registration: ${params.asMap}',
+    );
+    // Simply acknowledge the registration - we support all the capabilities the server wants to register
   }
 
   /// Update the LSP workspace dirs when our workspace [Root]s change.
