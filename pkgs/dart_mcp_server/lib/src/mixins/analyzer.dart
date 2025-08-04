@@ -15,8 +15,6 @@ import 'package:meta/meta.dart';
 import '../lsp/wire_format.dart';
 import '../utils/constants.dart';
 import '../utils/sdk.dart';
-import '../analyzer/dart_element_signature.dart' as element_signature;
-import 'dart_file_analyzer.dart';
 
 /// Mix this in to any MCPServer to add support for analyzing Dart projects.
 ///
@@ -69,8 +67,6 @@ base mixin DartAnalyzerSupport
 
     if (unsupportedReasons.isEmpty) {
       registerTool(analyzeFilesTool, _analyzeFiles);
-      //registerTool(definitionTool, _definition);
-      registerTool(signatureTool, _signature);
 
       /// I don't find the following tools useful or working properly (e.g. the signature help tool)
       //registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
@@ -423,95 +419,6 @@ base mixin DartAnalyzerSupport
     return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
   }
 
-  /// Implementation of the [signatureTool], go to the definition
-  /// of a symbol and get its signature.
-  Future<CallToolResult> _signature(CallToolRequest request) async {
-    final errorResult = await _ensurePrerequisites(request);
-    if (errorResult != null) return errorResult;
-
-    final uri = Uri.parse(request.arguments![ParameterNames.uri] as String);
-    final position = lsp.Position(
-      line: request.arguments![ParameterNames.line] as int,
-      character: request.arguments![ParameterNames.column] as int,
-    );
-
-    // Get the definition location(s) using LSP
-    final definitionResult = await _lspConnection.sendRequest(
-      lsp.Method.textDocument_definition.toString(),
-      lsp.DefinitionParams(
-        textDocument: lsp.TextDocumentIdentifier(uri: uri),
-        position: position,
-      ).toJson(),
-    );
-
-    // Parse the definition result to get locations
-    final definitions =
-        definitionResult is List ? definitionResult : [definitionResult];
-    final results = <Map<String, dynamic>>[];
-
-    for (final definition in definitions) {
-      if (definition == null) continue;
-
-      final Map<String, dynamic> def =
-          definition is Map<String, dynamic>
-              ? definition
-              : (definition as Map).cast<String, dynamic>();
-
-      final defUri = def['uri'] as String?;
-      final range = def['range'] as Map<String, dynamic>?;
-
-      if (defUri != null && range != null) {
-        final startPos = range['start'] as Map<String, dynamic>?;
-        if (startPos != null) {
-          final line = startPos['line'] as int;
-          final character = startPos['character'] as int;
-
-          // Try to get the signature using the analyzer if available
-          String? signature;
-          if (this is DartFileAnalyzerSupport) {
-            try {
-              final analyzerMixin = this as DartFileAnalyzerSupport;
-              final collection = await analyzerMixin.analysisCollection;
-
-              if (collection != null) {
-                final defUriParsed = Uri.parse(defUri);
-                final filePath =
-                    defUriParsed.scheme == 'file'
-                        ? defUriParsed.toFilePath()
-                        : defUri;
-
-                // Import the element_signature module
-                final signatureResult = await element_signature
-                    .getElementSignature(
-                      collection,
-                      filePath,
-                      line,
-                      character,
-                      getContainingDeclaration: true,
-                    );
-
-                if ((signatureResult.isError != true) &&
-                    signatureResult.content.isNotEmpty) {
-                  final firstContent = signatureResult.content.first;
-                  if (firstContent is TextContent) {
-                    signature = firstContent.text;
-                  }
-                }
-              }
-            } catch (e) {
-              // If signature retrieval fails, just continue without it
-              log(LoggingLevel.debug, 'Failed to get signature: $e');
-            }
-          }
-
-          results.add({'location': def, 'signature': signature});
-        }
-      }
-    }
-
-    return CallToolResult(content: [TextContent(text: jsonEncode(results))]);
-  }
-
   /// Ensures that all prerequisites for any analysis task are met.
   ///
   /// Returns an error response if any prerequisite is not met, otherwise
@@ -695,17 +602,6 @@ base mixin DartAnalyzerSupport
       title: 'Find definition location',
       readOnlyHint: true,
     ),
-  );
-
-  @visibleForTesting
-  static final signatureTool = Tool(
-    name: 'signature',
-    description:
-        'Get the definition location of a symbol at a given position in a file '
-        'and its signature/source code. This combines definition lookup with '
-        'signature retrieval for a more complete analysis.',
-    inputSchema: _locationSchema,
-    annotations: ToolAnnotations(title: 'Get signature', readOnlyHint: true),
   );
 
   @visibleForTesting

@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
@@ -17,7 +17,7 @@ import 'package:path/path.dart' as path;
 ///
 /// Returns null if no node is found at that location or if there's an error.
 Future<AstNode?> getAstNodeAtLocation(
-  AnalysisContextCollection collection,
+  AnalysisContext analysisContext,
   String filePath,
   int line,
   int column,
@@ -25,9 +25,6 @@ Future<AstNode?> getAstNodeAtLocation(
   try {
     // Normalize the file path
     final normalizedPath = path.normalize(filePath);
-
-    // Get the analysis context for this file
-    final analysisContext = collection.contexts.first;
 
     // Get the resolved library result (includes full library context)
     final libraryResult = await analysisContext.currentSession
@@ -60,7 +57,7 @@ Future<AstNode?> getAstNodeAtLocation(
     final node = _locateNode(unitResult.unit, offset);
 
     return node;
-  } catch (e, stackTrace) {
+  } catch (e) {
     return null;
   }
 }
@@ -72,14 +69,19 @@ Future<AstNode?> getAstNodeAtLocation(
 ///
 /// Returns null if no element is found at that location or if there's an error.
 Future<Element?> getElementAtLocation(
-  AnalysisContextCollection collection,
+  AnalysisContext analysisContext,
   String filePath,
   int line,
   int column,
 ) async {
   try {
     // Get the AST node at the location
-    final node = await getAstNodeAtLocation(collection, filePath, line, column);
+    final node = await getAstNodeAtLocation(
+      analysisContext,
+      filePath,
+      line,
+      column,
+    );
     if (node == null) {
       return null;
     }
@@ -89,7 +91,7 @@ Future<Element?> getElementAtLocation(
     final element = ElementLocator.locate(node);
 
     return element;
-  } catch (e, stackTrace) {
+  } catch (e) {
     return null;
   }
 }

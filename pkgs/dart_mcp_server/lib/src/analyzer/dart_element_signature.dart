@@ -2,7 +2,7 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
@@ -22,7 +22,7 @@ import 'dart_element_finder.dart' as element_finder;
 ///
 /// Returns a [CallToolResult] with the signature information or an error message.
 Future<CallToolResult> getElementSignature(
-  AnalysisContextCollection collection,
+  AnalysisContext analysisContext,
   String filePath,
   int line,
   int column, {
@@ -31,7 +31,7 @@ Future<CallToolResult> getElementSignature(
   try {
     // Get the AST node at the specified location
     final node = await element_finder.getAstNodeAtLocation(
-      collection,
+      analysisContext,
       filePath,
       line,
       column,

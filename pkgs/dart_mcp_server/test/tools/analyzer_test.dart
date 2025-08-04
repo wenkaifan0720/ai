@@ -4,8 +4,6 @@
 
 import 'package:dart_mcp/server.dart';
 import 'package:dart_mcp_server/src/mixins/analyzer.dart';
-import 'package:dart_mcp_server/src/utils/constants.dart';
-import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:test_descriptor/test_descriptor.dart' as d;
 
@@ -72,120 +70,123 @@ void main() {
       );
     });
 
-    test('can look up symbols in a workspace', () async {
-      final example = d.dir('lib', [
-        d.file('awesome_class.dart', 'class MyAwesomeClass {}'),
-      ]);
-      await example.create();
-      final exampleRoot = testHarness.rootForPath(example.io.path);
-      testHarness.mcpClient.addRoot(exampleRoot);
-      await pumpEventQueue();
+    // Disabled: resolveWorkspaceSymbolTool is not currently registered
+    // test('can look up symbols in a workspace', () async {
+    //   final example = d.dir('lib', [
+    //     d.file('awesome_class.dart', 'class MyAwesomeClass {}'),
+    //   ]);
+    //   await example.create();
+    //   final exampleRoot = testHarness.rootForPath(example.io.path);
+    //   testHarness.mcpClient.addRoot(exampleRoot);
+    //   await pumpEventQueue();
 
-      final result = await testHarness.callToolWithRetry(
-        CallToolRequest(
-          name: DartAnalyzerSupport.resolveWorkspaceSymbolTool.name,
-          arguments: {ParameterNames.query: 'MyAwesomeClass'},
-        ),
-      );
-      expect(result.isError, isNot(true));
+    //   final result = await testHarness.callToolWithRetry(
+    //     CallToolRequest(
+    //       name: DartAnalyzerSupport.resolveWorkspaceSymbolTool.name,
+    //       arguments: {ParameterNames.query: 'MyAwesomeClass'},
+    //     ),
+    //   );
+    //   expect(result.isError, isNot(true));
 
-      expect(
-        result.content.single,
-        isA<TextContent>().having(
-          (t) => t.text,
-          'text',
-          contains('awesome_class.dart'),
-        ),
-      );
-    });
+    //   expect(
+    //     result.content.single,
+    //     isA<TextContent>().having(
+    //       (t) => t.text,
+    //       'text',
+    //       contains('awesome_class.dart'),
+    //     ),
+    //   );
+    // });
 
-    test('can get signature help', () async {
-      final example = d.dir('example', [
-        d.file('main.dart', '''
-void main() {
-  printIt(x: 1);
-}
+    // Disabled: signatureHelpTool is not currently registered
+    // test('can get signature help', () async {
+    //   final example = d.dir('example', [
+    //     d.file('main.dart', '''
+    // void main() {
+    //   printIt(x: 1);
+    // }
 
-/// Just prints [x].
-void printIt({required int x}) {
-  print(x);
-}
-'''),
-      ]);
-      await example.create();
-      final exampleRoot = testHarness.rootForPath(example.io.path);
-      testHarness.mcpClient.addRoot(exampleRoot);
+    // /// Just prints [x].
+    // void printIt({required int x}) {
+    //   print(x);
+    // }
+    // '''),
+    //   ]);
+    //   await example.create();
+    //   final exampleRoot = testHarness.rootForPath(example.io.path);
+    //   testHarness.mcpClient.addRoot(exampleRoot);
 
-      await pumpEventQueue();
+    //   await pumpEventQueue();
 
-      final result = await testHarness.callToolWithRetry(
-        CallToolRequest(
-          name: DartAnalyzerSupport.signatureHelpTool.name,
-          arguments: {
-            ParameterNames.uri: p.join(exampleRoot.uri, 'main.dart'),
-            ParameterNames.line: 1,
-            ParameterNames.column: 12,
-          },
-        ),
-      );
-      expect(result.isError, isNot(true));
+    //   final result = await testHarness.callToolWithRetry(
+    //     CallToolRequest(
+    //       name: DartAnalyzerSupport.signatureHelpTool.name,
+    //       arguments: {
+    //         ParameterNames.uri: p.join(exampleRoot.uri, 'main.dart'),
+    //         ParameterNames.line: 1,
+    //         ParameterNames.column: 12,
+    //       },
+    //     ),
+    //   );
+    //   expect(result.isError, isNot(true));
 
-      expect(
-        result.content.single,
-        isA<TextContent>().having(
-          (t) => t.text,
-          'text',
-          allOf(
-            contains('Just prints [x].'), // From the doc comment
-            contains('printIt({required int x})'), // The actual signature
-          ),
-        ),
-      );
-    });
+    //   expect(
+    //     result.content.single,
+    //     isA<TextContent>().having(
+    //       (t) => t.text,
+    //       'text',
+    //       allOf(
+    //         contains('Just prints [x].'), // From the doc comment
+    //         contains('printIt({required int x})'), // The actual signature
+    //       ),
+    //     ),
+    //   );
+    // });
 
-    test('can get hover information', () async {
-      final example = d.dir('example', [
-        d.file('main.dart', '''
-void main() {
-  printIt(x: 1);
-}
+    // Disabled: hoverTool is not currently registered
+    // test('can get hover information', () async {
+    //   final example = d.dir('example', [
+    //     d.file('main.dart', '''
+    // void main() {
+    //   printIt(x: 1);
+    // }
 
-/// Just prints [x].
-void printIt({required int x}) {
-  print(x);
-}
-'''),
-      ]);
-      await example.create();
-      final exampleRoot = testHarness.rootForPath(example.io.path);
-      testHarness.mcpClient.addRoot(exampleRoot);
-      await pumpEventQueue();
+    // /// Just prints [x].
+    // void printIt({required int x}) {
+    //   print(x);
+    // }
+    // '''),
+    //   ]);
+    //   await example.create();
+    //   final exampleRoot = testHarness.rootForPath(example.io.path);
+    //   testHarness.mcpClient.addRoot(exampleRoot);
+    //   await pumpEventQueue();
 
-      final result = await testHarness.callToolWithRetry(
-        CallToolRequest(
-          name: DartAnalyzerSupport.hoverTool.name,
-          arguments: {
-            ParameterNames.uri: p.join(exampleRoot.uri, 'main.dart'),
-            ParameterNames.line: 1,
-            ParameterNames.column: 4,
-          },
-        ),
-      );
-      expect(result.isError, isNot(true));
+    //   final result = await testHarness.callToolWithRetry(
+    //     CallToolRequest(
+    //       name: DartAnalyzerSupport.hoverTool.name,
+    //       arguments: {
+    //         ParameterNames.uri: p.join(exampleRoot.uri, 'main.dart'),
+    //         ParameterNames.line: 1,
+    //         ParameterNames.column: 4,
+    //       },
+    //     ),
+    //   );
+    //   expect(result.isError, isNot(true));
 
-      expect(
-        result.content.single,
-        isA<TextContent>().having(
-          (t) => t.text,
-          'text',
-          allOf(
-            contains('Just prints [x].'), // Doc comment
-            contains('void printIt({required int x})'), // Function signature
-            contains('void Function({required int x})'), // The type of it
-          ),
-        ),
-      );
-    });
+    //   expect(
+    //     result.content.single,
+    //     isA<TextContent>().having(
+    //       (t) => t.text,
+    //       'text',
+    //       allOf(
+    //         contains('Just prints [x].'), // Doc comment
+    //         contains('void printIt({required int x})'), // Function signature
+    //         contains('void Function({required int x})'), // The type of it
+    //       ),
+    //     ),
+    //   );
+    // });
 
     test('cannot analyze without roots set', () async {
       final result = await testHarness.callToolWithRetry(
@@ -202,44 +203,46 @@ void printIt({required int x}) {
       );
     });
 
-    test('cannot look up symbols without roots set', () async {
-      final result = await testHarness.callToolWithRetry(
-        CallToolRequest(
-          name: DartAnalyzerSupport.resolveWorkspaceSymbolTool.name,
-          arguments: {ParameterNames.query: 'DartAnalyzerSupport'},
-        ),
-        expectError: true,
-      );
-      expect(
-        result.content.single,
-        isA<TextContent>().having(
-          (t) => t.text,
-          'text',
-          contains('No roots set'),
-        ),
-      );
-    });
+    // Disabled: resolveWorkspaceSymbolTool is not currently registered
+    // test('cannot look up symbols without roots set', () async {
+    //   final result = await testHarness.callToolWithRetry(
+    //     CallToolRequest(
+    //       name: DartAnalyzerSupport.resolveWorkspaceSymbolTool.name,
+    //       arguments: {ParameterNames.query: 'DartAnalyzerSupport'},
+    //     ),
+    //     expectError: true,
+    //   );
+    //   expect(
+    //     result.content.single,
+    //     isA<TextContent>().having(
+    //       (t) => t.text,
+    //       'text',
+    //       contains('No roots set'),
+    //     ),
+    //   );
+    // });
 
-    test('cannot get hover information without roots set', () async {
-      final result = await testHarness.callToolWithRetry(
-        CallToolRequest(
-          name: DartAnalyzerSupport.hoverTool.name,
-          arguments: {
-            ParameterNames.uri: 'file:///any/file.dart',
-            ParameterNames.line: 0,
-            ParameterNames.column: 0,
-          },
-        ),
-        expectError: true,
-      );
-      expect(
-        result.content.single,
-        isA<TextContent>().having(
-          (t) => t.text,
-          'text',
-          contains('No roots set'),
-        ),
-      );
-    });
+    // Disabled: hoverTool is not currently registered
+    // test('cannot get hover information without roots set', () async {
+    //   final result = await testHarness.callToolWithRetry(
+    //     CallToolRequest(
+    //       name: DartAnalyzerSupport.hoverTool.name,
+    //       arguments: {
+    //         ParameterNames.uri: 'file:///any/file.dart',
+    //         ParameterNames.line: 0,
+    //         ParameterNames.column: 0,
+    //       },
+    //     ),
+    //     expectError: true,
+    //   );
+    //   expect(
+    //     result.content.single,
+    //     isA<TextContent>().having(
+    //       (t) => t.text,
+    //       'text',
+    //       contains('No roots set'),
+    //     ),
+    //   );
+    // });
   });
 }
