@@ -241,7 +241,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     }
 
     return _withAnalysisContext(request, (context, filePath) async {
-      return element_signature.getElementSignature(
+      return element_signature.getElementDeclarationSignature(
         context,
         filePath,
         line,
@@ -469,7 +469,9 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
-        'Gets the source code of the element at a specific location in a Dart file.',
+        'Gets the signature of the declaration for the element at a specific location in a Dart file. '
+        'This tool follows references to their declarations, so if you place the cursor on a method call, '
+        'it will show the signature of the method definition, not the call site.',
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(

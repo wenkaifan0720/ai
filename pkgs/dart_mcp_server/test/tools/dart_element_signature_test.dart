@@ -286,7 +286,7 @@ void main() {
           'main.dart',
         );
 
-        // Test clicking on whitespace area - should find compilation unit
+        // Test clicking on whitespace area - should find compilation unit and return error
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
             name: getSignatureTool.name,
@@ -296,11 +296,15 @@ void main() {
               'column': 0,
             },
           ),
+          expectError: true,
         );
 
-        expect(result.isError, isNot(true));
+        expect(result.isError, isTrue);
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
+        expect(
+          signatureText,
+          contains('Cannot follow declaration for this element type'),
+        );
         expect(signatureText, contains('CompilationUnit'));
       });
 
@@ -354,7 +358,11 @@ void main() {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
             name: getSignatureTool.name,
-            arguments: {'uri': Uri.file(testFilePath).toString(), 'line': -1, 'column': -1},
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'line': -1,
+              'column': -1,
+            },
           ),
         );
 
@@ -536,36 +544,36 @@ void main() {
         expect(signatureText, contains('void main'));
       });
 
-      test(
-        'falls back to original node when no containing declaration found',
-        () async {
-          final testFilePath = p.join(
-            testHarness.fileSystem.currentDirectory.path,
-            'test_fixtures',
-            'counter_app',
-            'lib',
-            'main.dart',
-          );
+      test('returns error when declaration cannot be followed', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
 
-          // Test clicking on a top-level element (import) where no containing declaration exists
-          final result = await testHarness.callToolWithRetry(
-            CallToolRequest(
-              name: getSignatureTool.name,
-              arguments: {
-                'uri': Uri.file(testFilePath).toString(),
-                'line': 0, // import statement area
-                'column': 0,
-                'get_containing_declaration': true,
-              },
-            ),
-          );
+        // Test clicking on a top-level element (import) where declaration cannot be followed
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'line': 0, // import statement area
+              'column': 0,
+              'get_containing_declaration': true,
+            },
+          ),
+          expectError: true,
+        );
 
-          expect(result.isError, isNot(true));
-          final signatureText = (result.content.first as TextContent).text;
-          expect(signatureText, contains('AST Node Type:'));
-          // Should fall back to the original element found
-        },
-      );
+        expect(result.isError, isTrue);
+        final signatureText = (result.content.first as TextContent).text;
+        expect(
+          signatureText,
+          contains('Cannot follow declaration for this element type'),
+        );
+      });
 
       test('works with default value true', () async {
         final testFilePath = p.join(

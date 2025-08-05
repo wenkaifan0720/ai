@@ -101,8 +101,8 @@ base mixin DartAnalyzerSupport
       '--protocol',
       'lsp',
       // Uncomment these to log the analyzer traffic.
-      '--protocol-traffic-log',
-      'language-server-protocol.log',
+      // '--protocol-traffic-log',
+      // 'language-server-protocol.log',
     ]);
     _lspServer.stderr
         .transform(utf8.decoder)
