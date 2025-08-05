@@ -313,29 +313,44 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getDartFileOutlineTool = Tool(
     name: 'get_dart_file_outline',
     description:
-        'Parses a Dart file and returns an outline version with method bodies '
-        'removed, preserving class structure, method signatures, and imports. '
-        'This provides a token-efficient overview of the file structure.',
+        'Parses a Dart file and returns a skeletal outline with method bodies removed, '
+        'preserving class structure, method signatures, imports, and comments. '
+        'This provides a token-efficient overview of the file structure that is ideal '
+        'for understanding code organization, API surfaces, and inheritance relationships '
+        'without the implementation details.',
+    annotations: ToolAnnotations(
+      title: 'Dart File Outline',
+      readOnlyHint: true,
+    ),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
-          description: 'The URI of the Dart file to analyze.',
+          description:
+              'The URI of the Dart file to analyze. Can be a file:// URI or absolute file path.',
         ),
         'skip_expression_bodies': Schema.bool(
           description:
-              'Whether to also skip expression function bodies (=> syntax). Defaults to false.',
+              'Whether to convert expression function bodies (=> syntax) to regular bodies with content skipped. '
+              'When true, `methodName() => implementation;` becomes `methodName() { /* skipped */ }`. '
+              'When false, preserves the original `=>` syntax. Defaults to false.',
         ),
         'omit_skip_comments': Schema.bool(
           description:
-              'Whether to omit the "// Lines X-Y skipped" comments. Defaults to false.',
+              'Whether to omit the "// Lines X-Y skipped" placeholder comments that indicate '
+              'where method bodies were removed. When true, provides a cleaner outline. '
+              'When false, shows exactly which lines were skipped for reference. Defaults to false.',
         ),
         'skip_imports': Schema.bool(
           description:
-              'Whether to remove import directives from the output. Defaults to false.',
+              'Whether to remove all import and export directives from the output. '
+              'Useful when you only need to see the defined classes and methods '
+              'without dependency information. Defaults to false.',
         ),
         'skip_comments': Schema.bool(
           description:
-              'Whether to remove all comments from the output. Defaults to false.',
+              'Whether to remove all comments (both single-line // and multi-line /* */) '
+              'from the output. Useful when you want a minimal code structure view. '
+              'Note: this removes original comments but may preserve skip indicators. Defaults to false.',
         ),
       },
       required: ['uri'],
@@ -346,45 +361,24 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final convertDartUriTool = Tool(
     name: 'convert_dart_uri',
     description:
-        'Converts a Dart URI (dart:, package:, or file:) to an actual file path '
-        'that can be accessed by AI tools. Supports dart: URIs like dart:ui, '
-        'package: URIs like package:flutter/material.dart, and file paths.',
+        'Converts Dart-specific URIs to actual file paths that can be accessed by other tools. '
+        'Essential for navigating Dart\'s module system and resolving dependencies. '
+        'Supports dart: core library URIs (dart:core, dart:io), package: URIs from pub dependencies '
+        '(package:flutter/material.dart), and converts them to the actual file locations on disk.',
+    annotations: ToolAnnotations(title: 'Convert Dart URI', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
           description:
-              'The URI to convert (e.g., "dart:ui", "package:flutter/material.dart").',
-        ),
-        'context_path': Schema.string(
-          description:
-              'Optional: A file path in the project for context when resolving package: URIs. '
-              'Required for package: URIs to resolve dependencies correctly.',
+              'The URI to convert. Examples:\n'
+              '• dart:core - Core Dart library\n'
+              '• dart:io - Dart I/O library\n'
+              '• package:flutter/material.dart - Flutter Material package\n'
+              '• package:my_package/lib.dart - Local package reference\n'
+              '• file:///path/to/file.dart - File URI (returned as-is)',
         ),
       },
       required: ['uri'],
-    ),
-  );
-
-  /// Tool for discovering available API members of a type.
-  static final getAvailableMembersTool = Tool(
-    name: 'get_available_members',
-    description:
-        'Gets available API members (constructors, methods, properties) for a given type. '
-        'Essential for AI code generation to discover what operations are available on objects.',
-    inputSchema: Schema.object(
-      properties: {
-        'uri': Schema.string(
-          description: 'The URI of a Dart file containing the type.',
-        ),
-        'type_name': Schema.string(
-          description: 'The name of the type to analyze.',
-        ),
-        'include_inherited': Schema.bool(
-          description:
-              'Whether to include inherited members from supertypes. Defaults to true.',
-        ),
-      },
-      required: ['uri', 'type_name'],
     ),
   );
 
@@ -392,23 +386,30 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
-        'Gets the signature of the declaration for the element at a specific location in a Dart file. '
-        'This tool follows references to their declarations, so if you place the cursor on a method call, '
-        'it will show the signature of the method definition, not the call site.',
+        'Analyzes a specific location in a Dart file and returns the signature of the element at that position. '
+        'This tool performs "Go to Definition" functionality - when you point to a method call, variable reference, '
+        'or type usage, it returns the signature of the actual declaration, not the usage site. '
+        'Essential for understanding APIs, method parameters, return types, and class definitions.',
+    annotations: ToolAnnotations(title: 'Get Signature', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
           description: 'The URI of the Dart file to analyze.',
         ),
         'line': Schema.int(
-          description: 'The zero-based line number of the position.',
+          description:
+              'The zero-based line number of the cursor position in the file.',
         ),
         'column': Schema.int(
-          description: 'The zero-based column number of the position.',
+          description:
+              'The zero-based column number of the cursor position within the line.',
         ),
         'get_containing_declaration': Schema.bool(
           description:
-              'Optional. If true, walks up the AST tree to find the containing class, enum, mixin, extension, type alias, function, or top-level variable declaration and returns its signature instead of the element at the specified location.',
+              'Whether to return the signature of the containing declaration instead of just the element declaration. '
+              'When true, if the cursor is inside a method body, it returns the method signature. '
+              'If inside a class, returns the class declaration. Useful for getting context about '
+              'the current scope rather than the specific symbol under the cursor.',
         ),
       },
       required: ['uri', 'line', 'column'],
