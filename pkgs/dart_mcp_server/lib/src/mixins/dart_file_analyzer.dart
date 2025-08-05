@@ -14,7 +14,7 @@ import 'package:dart_mcp/server.dart';
 import 'package:path/path.dart' as path;
 
 import '../analyzer/dart_element_signature.dart' as element_signature;
-import '../analyzer/dart_file_skeleton.dart' as skeleton;
+import '../analyzer/dart_file_outline.dart' as outline;
 import '../analyzer/dart_uri_converter.dart' as uri_converter;
 import '../utils/sdk.dart';
 
@@ -54,7 +54,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     }
 
     // Register all the tools
-    registerTool(getDartFileSkeletonTool, _getDartFileSkeleton);
+    registerTool(getDartFileOutlineTool, _getDartFileOutline);
     registerTool(convertDartUriTool, _convertDartUri);
     registerTool(getSignatureTool, _getSignature);
 
@@ -208,9 +208,9 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
 
   // Tool implementations using shared analysis context
 
-  Future<CallToolResult> _getDartFileSkeleton(CallToolRequest request) async {
+  Future<CallToolResult> _getDartFileOutline(CallToolRequest request) async {
     // This tool doesn't need analysis context, delegate to original implementation
-    return skeleton.getDartFileSkeleton(request);
+    return outline.getDartFileOutline(request);
   }
 
   Future<CallToolResult> _convertDartUri(CallToolRequest request) async {
@@ -309,11 +309,11 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
 
   // Tool definitions (unchanged from original)
 
-  /// Tool for creating a skeleton version of a Dart file with method bodies removed.
-  static final getDartFileSkeletonTool = Tool(
-    name: 'get_dart_file_skeleton',
+  /// Tool for creating an outline version of a Dart file with method bodies removed.
+  static final getDartFileOutlineTool = Tool(
+    name: 'get_dart_file_outline',
     description:
-        'Parses a Dart file and returns a skeleton version with method bodies '
+        'Parses a Dart file and returns an outline version with method bodies '
         'removed, preserving class structure, method signatures, and imports. '
         'This provides a token-efficient overview of the file structure.',
     inputSchema: Schema.object(
@@ -339,83 +339,6 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         ),
       },
       required: ['uri'],
-    ),
-  );
-
-  /// Tool for extracting class names from a Dart file.
-  static final getDartClassNamesTool = Tool(
-    name: 'get_dart_class_names',
-    description:
-        'Analyzes a Dart file and returns the list of class names defined '
-        'in it.',
-    inputSchema: Schema.object(
-      properties: {
-        'uri': Schema.string(
-          description: 'The URI of the Dart file to analyze.',
-        ),
-      },
-      required: ['uri'],
-    ),
-  );
-
-  /// Tool for checking if one type is a subtype of another.
-  static final checkDartSubtypeTool = Tool(
-    name: 'check_dart_subtype',
-    description:
-        'Checks if one type is assignable to another using the Dart type system. '
-        'This performs semantic analysis, not just name matching.',
-    inputSchema: Schema.object(
-      properties: {
-        'uri': Schema.string(
-          description: 'The URI of a Dart file containing both types.',
-        ),
-        'subtype': Schema.string(
-          description: 'The name of the potential subtype.',
-        ),
-        'supertype': Schema.string(
-          description: 'The name of the potential supertype.',
-        ),
-      },
-      required: ['uri', 'subtype', 'supertype'],
-    ),
-  );
-
-  /// Tool for getting the complete inheritance hierarchy of a type.
-  static final getDartTypeHierarchyTool = Tool(
-    name: 'get_dart_type_hierarchy',
-    description:
-        'Gets the complete inheritance hierarchy for a type, including '
-        'superclasses, implemented interfaces, and mixed-in types.',
-    inputSchema: Schema.object(
-      properties: {
-        'uri': Schema.string(
-          description: 'The URI of a Dart file containing the type.',
-        ),
-        'type_name': Schema.string(
-          description: 'The name of the type to analyze.',
-        ),
-      },
-      required: ['uri', 'type_name'],
-    ),
-  );
-
-  /// Tool for finding all implementations of a given interface/class.
-  static final findDartImplementationsTool = Tool(
-    name: 'find_dart_implementations',
-    description:
-        'Finds all classes that implement or extend a given interface/class '
-        'within a project directory.',
-    inputSchema: Schema.object(
-      properties: {
-        'project_path': Schema.string(
-          description: 'The absolute path to the project directory to search.',
-        ),
-        'interface_name': Schema.string(
-          description:
-              'The name of the interface/class to find implementations of.',
-        ),
-      },
-      required: ['project_path', 'interface_name'],
     ),
   );
 

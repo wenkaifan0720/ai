@@ -7,8 +7,8 @@ import 'dart:io';
 import 'package:ast_context/dart_parser.dart';
 import 'package:dart_mcp/server.dart';
 
-/// Implementation of the get_dart_file_skeleton tool.
-Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
+/// Implementation of the get_dart_file_outline tool.
+Future<CallToolResult> getDartFileOutline(CallToolRequest request) async {
   final uriString = request.arguments?['uri'] as String?;
   if (uriString == null) {
     return CallToolResult(
@@ -38,7 +38,7 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
     }
 
     final content = await file.readAsString();
-    final skeleton = parseDartFileSkipMethods(
+    final outline = parseDartFileSkipMethods(
       content,
       skipExpressionBodies: skipExpressionBodies,
       omitSkipComments: omitSkipComments,
@@ -50,7 +50,7 @@ Future<CallToolResult> getDartFileSkeleton(CallToolRequest request) async {
     return CallToolResult(
       content: [
         TextContent(
-          text: 'Dart file skeleton for $filePath:\n\n```dart\n$skeleton\n```',
+          text: 'Dart file outline for $filePath:\n\n```dart\n$outline\n```',
         ),
       ],
     );

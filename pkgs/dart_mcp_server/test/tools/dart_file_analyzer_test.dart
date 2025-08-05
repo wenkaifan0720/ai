@@ -32,21 +32,21 @@ void main() {
   });
 
   group('dart file analyzer tools', () {
-    late Tool getFileSkeletonTool;
+    late Tool getFileOutlineTool;
     late Tool convertDartUriTool;
 
     setUp(() async {
       final tools = (await testHarness.mcpServerConnection.listTools()).tools;
-      getFileSkeletonTool = tools.singleWhere(
-        (t) => t.name == DartFileAnalyzerSupport.getDartFileSkeletonTool.name,
+      getFileOutlineTool = tools.singleWhere(
+        (t) => t.name == DartFileAnalyzerSupport.getDartFileOutlineTool.name,
       );
       convertDartUriTool = tools.singleWhere(
         (t) => t.name == DartFileAnalyzerSupport.convertDartUriTool.name,
       );
     });
 
-    group('get_dart_file_skeleton', () {
-      test('creates skeleton for Flutter counter app', () async {
+    group('get_dart_file_outline', () {
+      test('creates outline for Flutter counter app', () async {
         final testFilePath = p.join(
           testHarness.fileSystem.currentDirectory.path,
           'test_fixtures',
@@ -57,7 +57,7 @@ void main() {
 
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
@@ -71,26 +71,23 @@ void main() {
         expect(result.isError, isNot(true));
         expect(result.content, hasLength(1));
 
-        final skeletonText = (result.content.first as TextContent).text;
-        expect(skeletonText, contains('Dart file skeleton'));
-        expect(skeletonText, contains('class MyApp extends StatelessWidget'));
+        final outlineText = (result.content.first as TextContent).text;
+        expect(outlineText, contains('Dart file outline'));
+        expect(outlineText, contains('class MyApp extends StatelessWidget'));
         expect(
-          skeletonText,
+          outlineText,
           contains('class MyHomePage extends StatefulWidget'),
         );
-        expect(skeletonText, contains('// Lines'));
-        expect(skeletonText, contains('skipped'));
+        expect(outlineText, contains('// Lines'));
+        expect(outlineText, contains('skipped'));
 
         // Should preserve imports
-        expect(
-          skeletonText,
-          contains("import 'package:flutter/material.dart'"),
-        );
+        expect(outlineText, contains("import 'package:flutter/material.dart'"));
 
         // Should preserve method signatures but remove bodies
-        expect(skeletonText, contains('Widget build(BuildContext context)'));
+        expect(outlineText, contains('Widget build(BuildContext context)'));
         expect(
-          skeletonText,
+          outlineText,
           contains('class _MyHomePageState extends State<MyHomePage>'),
         );
       });
@@ -106,10 +103,10 @@ void main() {
 
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': true,
+              'skip_expression_bodies': false,
               'omit_skip_comments': false,
               'skip_imports': false,
               'skip_comments': false,
@@ -118,8 +115,8 @@ void main() {
         );
 
         expect(result.isError, isNot(true));
-        final skeletonText = (result.content.first as TextContent).text;
-        expect(skeletonText, contains('State<MyHomePage> createState() =>'));
+        final outlineText = (result.content.first as TextContent).text;
+        expect(outlineText, contains('State<MyHomePage> createState() =>'));
       });
 
       test('works with omit_skip_comments option', () async {
@@ -133,7 +130,7 @@ void main() {
 
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
@@ -145,9 +142,9 @@ void main() {
         );
 
         expect(result.isError, isNot(true));
-        final skeletonText = (result.content.first as TextContent).text;
-        expect(skeletonText, isNot(contains('Lines')));
-        expect(skeletonText, isNot(contains('skipped')));
+        final outlineText = (result.content.first as TextContent).text;
+        expect(outlineText, isNot(contains('Lines')));
+        expect(outlineText, isNot(contains('skipped')));
       });
 
       test('works with skip_imports option', () async {
@@ -161,7 +158,7 @@ void main() {
 
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
@@ -173,8 +170,8 @@ void main() {
         );
 
         expect(result.isError, isNot(true));
-        final skeletonText = (result.content.first as TextContent).text;
-        expect(skeletonText, isNot(contains('import')));
+        final outlineText = (result.content.first as TextContent).text;
+        expect(outlineText, isNot(contains('import')));
       });
 
       test('works with skip_comments option', () async {
@@ -188,7 +185,7 @@ void main() {
 
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'skip_expression_bodies': false,
@@ -200,18 +197,18 @@ void main() {
         );
 
         expect(result.isError, isNot(true));
-        final skeletonText = (result.content.first as TextContent).text;
+        final outlineText = (result.content.first as TextContent).text;
 
         // Should not contain any comment syntax
-        expect(skeletonText, isNot(contains('//')));
-        expect(skeletonText, isNot(contains('/*')));
-        expect(skeletonText, isNot(contains('*/')));
+        expect(outlineText, isNot(contains('//')));
+        expect(outlineText, isNot(contains('/*')));
+        expect(outlineText, isNot(contains('*/')));
 
         // Should still contain class and method structure
-        expect(skeletonText, contains('class MyApp extends StatelessWidget'));
-        expect(skeletonText, contains('Widget build(BuildContext context)'));
+        expect(outlineText, contains('class MyApp extends StatelessWidget'));
+        expect(outlineText, contains('Widget build(BuildContext context)'));
         expect(
-          skeletonText,
+          outlineText,
           contains('class _MyHomePageState extends State<MyHomePage>'),
         );
       });
@@ -219,7 +216,7 @@ void main() {
       test('returns error for missing file', () async {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'uri': 'file:///non/existent/file.dart',
               'skip_expression_bodies': false,
@@ -241,7 +238,7 @@ void main() {
       test('returns error for missing file_path argument', () async {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
-            name: getFileSkeletonTool.name,
+            name: getFileOutlineTool.name,
             arguments: {
               'skip_expression_bodies': false,
               'omit_skip_comments': false,
