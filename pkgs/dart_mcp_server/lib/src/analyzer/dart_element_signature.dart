@@ -113,10 +113,7 @@ Future<CallToolResult> getElementDeclarationSignature(
             : targetNode;
 
     // Generate signature directly from the AST node
-    final signature = _generateSignatureFromAstNode(
-      finalNode,
-      declarationElement,
-    );
+    final signature = _generateSignatureFromAstNode(finalNode);
 
     return CallToolResult(
       content: [TextContent(text: signature)],
@@ -253,7 +250,7 @@ Future<CallToolResult> getElementSignature(
 ///
 /// Returns null if no containing declaration is found.
 AstNode? _findContainingDeclaration(AstNode node) {
-  AstNode? current = node.parent;
+  var current = node.parent;
 
   while (current != null) {
     if (current is ClassDeclaration ||
@@ -272,21 +269,8 @@ AstNode? _findContainingDeclaration(AstNode node) {
 }
 
 /// Generates a signature from an AST node using its source representation.
-String _generateSignatureFromAstNode(AstNode node, [Element? element]) {
+String _generateSignatureFromAstNode(AstNode node) {
   final buffer = StringBuffer();
-
-  // Add element information if provided
-  if (element != null) {
-    buffer.writeln('Element Type: ${element.runtimeType}');
-    buffer.writeln('Element Name: ${element.displayName}');
-    if (element.source?.fullName != null) {
-      buffer.writeln('Declaration Location: ${element.source!.fullName}');
-    }
-  }
-
-  // Add node type information
-  buffer.writeln('AST Node Type: ${node.runtimeType}');
-  buffer.writeln('');
 
   // Get the source code for this node
   final sourceCode = node.toSource();
@@ -294,7 +278,7 @@ String _generateSignatureFromAstNode(AstNode node, [Element? element]) {
   // For method and function declarations, or any node that might contain them,
   // we want to omit method bodies to save tokens while keeping the signature
   final processedCode = _simplifyMethodBodies(sourceCode);
-  buffer.writeln('Signature:');
+  ;
   buffer.writeln(processedCode);
 
   return buffer.toString();
@@ -319,7 +303,7 @@ String _simplifyMethodBodies(String source) {
           ..sort((a, b) => b.startOffset.compareTo(a.startOffset));
 
     // Apply all replacements
-    String result = source;
+    var result = source;
     for (final replacement in replacements) {
       if (replacement.startOffset >= 0 &&
           replacement.endOffset <= result.length &&

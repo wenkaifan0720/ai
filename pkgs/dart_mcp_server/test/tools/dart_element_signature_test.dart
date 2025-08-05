@@ -65,10 +65,9 @@ void main() {
         expect(result.content, hasLength(1));
 
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class MyApp'));
         expect(signatureText, contains('extends StatelessWidget'));
+        expect(signatureText, contains('Widget build(BuildContext context)'));
       });
 
       test('gets signature for MyHomePage class', () async {
@@ -95,10 +94,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class MyHomePage'));
         expect(signatureText, contains('extends StatefulWidget'));
+        expect(signatureText, contains('required this.title'));
       });
 
       test('recursively skips method bodies in _MyHomePageState class', () async {
@@ -125,10 +123,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class _MyHomePageState'));
         expect(signatureText, contains('extends State<MyHomePage>'));
+        expect(signatureText, contains('int _counter = 0'));
 
         // Verify all method bodies are simplified - recursive body skipping
         expect(signatureText, contains('void _incrementCounter()'));
@@ -169,11 +166,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('MethodDeclaration'));
+        expect(signatureText, contains('@override'));
         expect(signatureText, contains('Widget build'));
         expect(signatureText, contains('BuildContext context'));
-        expect(signatureText, contains('@override'));
         // Method body should be empty - no implementation details
         expect(signatureText, contains('{}'));
         expect(signatureText, isNot(contains('MaterialApp')));
@@ -205,9 +200,8 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('MethodDeclaration'));
         expect(signatureText, contains('void _incrementCounter'));
+        expect(signatureText, contains('setState'));
         // Method body should be simplified - no inner implementation details
         expect(signatureText, isNot(contains('_counter++')));
       });
@@ -238,9 +232,8 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('VariableDeclaration'));
         expect(signatureText, contains('_counter'));
+        expect(signatureText, contains('= 0'));
       });
     });
 
@@ -270,8 +263,6 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('SimpleIdentifier'));
         expect(signatureText, contains('MyHomePage'));
       });
     });
@@ -395,9 +386,8 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class MyApp'));
+        expect(signatureText, contains('extends StatelessWidget'));
       });
     });
 
@@ -426,8 +416,8 @@ void main() {
         expect(publicResult.isError, isNot(true));
         final publicSignature =
             (publicResult.content.first as TextContent).text;
-        expect(publicSignature, contains('AST Node Type:'));
         expect(publicSignature, contains('class MyApp'));
+        expect(publicSignature, contains('extends StatelessWidget'));
 
         // Test private field
         final privateResult = await testHarness.callToolWithRetry(
@@ -444,8 +434,8 @@ void main() {
         expect(privateResult.isError, isNot(true));
         final privateSignature =
             (privateResult.content.first as TextContent).text;
-        expect(privateSignature, contains('AST Node Type:'));
         expect(privateSignature, contains('_counter'));
+        expect(privateSignature, contains('= 0'));
       });
     });
 
@@ -474,10 +464,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class MyApp'));
         expect(signatureText, contains('extends StatelessWidget'));
+        expect(signatureText, contains('Widget build(BuildContext context)'));
         // Should contain the method but with empty body
         expect(signatureText, contains('Widget build'));
         expect(signatureText, isNot(contains('MaterialApp')));
@@ -507,10 +496,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class _MyHomePageState'));
         expect(signatureText, contains('extends State<MyHomePage>'));
+        expect(signatureText, contains('static const includeLayoutError'));
         // Should contain the field
         expect(signatureText, contains('int _counter'));
       });
@@ -539,9 +527,8 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('FunctionDeclaration'));
         expect(signatureText, contains('void main'));
+        expect(signatureText, contains('{}'));
       });
 
       test('returns error when declaration cannot be followed', () async {
@@ -599,10 +586,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('AST Node Type:'));
-        expect(signatureText, contains('ClassDeclaration'));
         expect(signatureText, contains('class MyApp'));
         expect(signatureText, contains('extends StatelessWidget'));
+        expect(signatureText, contains('Widget build(BuildContext context)'));
         // Should contain the method but with empty body
         expect(signatureText, contains('Widget build'));
         expect(signatureText, isNot(contains('MaterialApp')));
