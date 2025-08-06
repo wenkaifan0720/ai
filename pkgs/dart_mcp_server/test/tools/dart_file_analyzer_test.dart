@@ -90,6 +90,11 @@ void main() {
           outlineText,
           contains('class _MyHomePageState extends State<MyHomePage>'),
         );
+
+        // Method bodies should be simplified to empty blocks
+        expect(outlineText, isNot(contains('MaterialApp')));
+        expect(outlineText, isNot(contains('Scaffold')));
+        expect(outlineText, isNot(contains('setState')));
       });
 
       test('works with skip_expression_bodies option', () async {

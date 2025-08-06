@@ -224,7 +224,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     final line = request.arguments?['line'] as int?;
     final column = request.arguments?['column'] as int?;
     final getContainingDeclaration =
-        request.arguments?['get_containing_declaration'] as bool? ?? false;
+        request.arguments?['get_containing_declaration'] as bool? ?? true;
 
     if (line == null) {
       return CallToolResult(

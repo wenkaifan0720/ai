@@ -132,6 +132,11 @@ void main() {
         expect(signatureText, contains('Widget build(BuildContext context)'));
 
         // Verify method implementations are simplified (inner content removed)
+        expect(signatureText, contains('void _incrementCounter() {}'));
+        expect(
+          signatureText,
+          contains('Widget build(BuildContext context) {}'),
+        );
         expect(signatureText, isNot(contains('_counter++')));
         expect(signatureText, isNot(contains('Scaffold')));
         expect(signatureText, isNot(contains('MaterialApp')));
@@ -200,9 +205,9 @@ void main() {
 
         expect(result.isError, isNot(true));
         final signatureText = (result.content.first as TextContent).text;
-        expect(signatureText, contains('void _incrementCounter'));
-        expect(signatureText, contains('setState'));
+        expect(signatureText, contains('void _incrementCounter() {}'));
         // Method body should be simplified - no inner implementation details
+        expect(signatureText, isNot(contains('setState')));
         expect(signatureText, isNot(contains('_counter++')));
       });
     });
@@ -466,7 +471,10 @@ void main() {
         final signatureText = (result.content.first as TextContent).text;
         expect(signatureText, contains('class MyApp'));
         expect(signatureText, contains('extends StatelessWidget'));
-        expect(signatureText, contains('Widget build(BuildContext context)'));
+        expect(
+          signatureText,
+          contains('Widget build(BuildContext context) {}'),
+        );
         // Should contain the method but with empty body
         expect(signatureText, contains('Widget build'));
         expect(signatureText, isNot(contains('MaterialApp')));
@@ -588,7 +596,10 @@ void main() {
         final signatureText = (result.content.first as TextContent).text;
         expect(signatureText, contains('class MyApp'));
         expect(signatureText, contains('extends StatelessWidget'));
-        expect(signatureText, contains('Widget build(BuildContext context)'));
+        expect(
+          signatureText,
+          contains('Widget build(BuildContext context) {}'),
+        );
         // Should contain the method but with empty body
         expect(signatureText, contains('Widget build'));
         expect(signatureText, isNot(contains('MaterialApp')));
