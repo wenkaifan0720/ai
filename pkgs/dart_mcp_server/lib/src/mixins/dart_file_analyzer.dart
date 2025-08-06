@@ -214,9 +214,33 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   }
 
   Future<CallToolResult> _convertDartUri(CallToolRequest request) async {
-    return _withAnalysisContext(request, (context, filePath) async {
+    // Check if we have any analysis collections
+    if (_analysisCollections.isEmpty) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text:
+                'No analysis collections available. Make sure roots are set and Dart SDK is available.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    try {
+      // Use any available analysis context since URI conversion works across the entire project
+      final context = _analysisCollections.values.first.contexts.first;
       return uri_converter.convertDartUriWithContext(request, this, context);
-    });
+    } catch (e) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text: 'Error accessing analysis context for URI conversion: $e',
+          ),
+        ],
+        isError: true,
+      );
+    }
   }
 
   Future<CallToolResult> _getSignature(CallToolRequest request) async {
