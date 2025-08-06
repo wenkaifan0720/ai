@@ -272,12 +272,9 @@ AstNode? _findContainingDeclaration(AstNode node) {
 String _generateSignatureFromAstNode(AstNode node) {
   final buffer = StringBuffer();
 
-  // Get the source code for this node
-  final sourceCode = node.toSource();
-
   // For method and function declarations, or any node that might contain them,
   // we want to omit method bodies to save tokens while keeping the signature
-  final processedCode = _simplifyMethodBodies(sourceCode);
+  final processedCode = _simplifyMethodBodies(node);
   ;
   buffer.writeln(processedCode);
 
@@ -285,17 +282,12 @@ String _generateSignatureFromAstNode(AstNode node) {
 }
 
 /// Simplifies method/function bodies by replacing them with placeholders using an AST visitor.
-String _simplifyMethodBodies(String source) {
+String _simplifyMethodBodies(AstNode node) {
+  final source = node.toSource();
   try {
-    // Parse the source code to get a fresh AST with correct offsets
-    final parseResult = parseString(
-      content: source,
-      featureSet: FeatureSet.latestLanguageVersion(),
-    );
-
     // Create a visitor to collect all method/function nodes that need body simplification
     final visitor = _MethodBodySimplifierVisitor();
-    parseResult.unit.accept(visitor);
+    node.accept(visitor);
 
     // Sort replacements in reverse order to avoid affecting offsets
     final replacements =
