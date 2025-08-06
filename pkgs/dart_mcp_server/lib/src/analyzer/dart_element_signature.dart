@@ -133,7 +133,17 @@ Future<CallToolResult> getElementDeclarationSignature(
 ///
 /// If the element is already a declaration, returns it as-is.
 /// If it's a reference to another element, follows it to the declaration.
+/// For implicit property accessor elements, returns the associated variable element.
 Element _findDeclarationElement(Element element) {
+  // Handle PropertyAccessorElement (like implicit getters for widget parameters)
+  if (element is PropertyAccessorElement) {
+    // For implicit getters/setters, get the variable they're associated with
+    final variable = element.variable2;
+    if (variable != null) {
+      return variable.declaration;
+    }
+  }
+
   // If this element has a declaration, follow it
   if (element.declaration case final declaration?) {
     return declaration;

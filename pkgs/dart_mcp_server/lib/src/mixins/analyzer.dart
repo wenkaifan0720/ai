@@ -72,7 +72,7 @@ base mixin DartAnalyzerSupport
       //registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
       //registerTool(signatureHelpTool, _signatureHelp);
       //registerTool(hoverTool, _hover);
-      registerTool(codeActionTool, _codeAction);
+      //registerTool(codeActionTool, _codeAction);
     }
 
     // Don't call any methods on the client until we are fully initialized

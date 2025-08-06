@@ -605,5 +605,72 @@ void main() {
         expect(signatureText, isNot(contains('MaterialApp')));
       });
     });
+
+    group('property accessor elements', () {
+      test(
+        'gets signature for widget parameter through property accessor',
+        () async {
+          final testFilePath = p.join(
+            testHarness.fileSystem.currentDirectory.path,
+            'test_fixtures',
+            'counter_app',
+            'lib',
+            'main.dart',
+          );
+
+          // Test clicking on widget.title - should resolve to the parameter declaration
+          final result = await testHarness.callToolWithRetry(
+            CallToolRequest(
+              name: getSignatureTool.name,
+              arguments: {
+                'uri': Uri.file(testFilePath).toString(),
+                'line': 52, // Text(widget.title) (line 53, 0-based = 52)
+                'column': 27, // clicking on 'title' in 'widget.title'
+                'get_containing_declaration': false,
+              },
+            ),
+          );
+
+          expect(result.isError, isFalse);
+          final signatureText = (result.content.first as TextContent).text;
+
+          // Should show the title parameter declaration
+          expect(signatureText, contains('title'));
+        },
+      );
+
+      test(
+        'gets containing class for widget parameter through property accessor',
+        () async {
+          final testFilePath = p.join(
+            testHarness.fileSystem.currentDirectory.path,
+            'test_fixtures',
+            'counter_app',
+            'lib',
+            'main.dart',
+          );
+
+          // Test with containing declaration - should show the containing class
+          final result = await testHarness.callToolWithRetry(
+            CallToolRequest(
+              name: getSignatureTool.name,
+              arguments: {
+                'uri': Uri.file(testFilePath).toString(),
+                'line': 52, // Text(widget.title) (line 53, 0-based = 52)
+                'column': 27, // clicking on 'title' in 'widget.title'
+                'get_containing_declaration': true,
+              },
+            ),
+          );
+
+          expect(result.isError, isFalse);
+          final signatureText = (result.content.first as TextContent).text;
+
+          // Should show the containing class with the title field
+          expect(signatureText, contains('class MyHomePage'));
+          expect(signatureText, contains('final String title'));
+        },
+      );
+    });
   });
 }
