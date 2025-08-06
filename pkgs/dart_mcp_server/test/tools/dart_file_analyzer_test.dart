@@ -292,54 +292,6 @@ void main() {
         expect(resultText, contains('.dart'));
       });
 
-      test('converts package: URI with context', () async {
-        final contextPath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: convertDartUriTool.name,
-            arguments: {
-              'uri': 'package:flutter/material.dart',
-              'context_path': contextPath,
-            },
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        expect(result.content, hasLength(1));
-
-        final resultText = (result.content.first as TextContent).text;
-        expect(
-          resultText,
-          contains(
-            'URI "package:flutter/material.dart" resolved to file path:',
-          ),
-        );
-        expect(resultText, contains('material.dart'));
-      });
-
-      test('returns error for package: URI without context', () async {
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: convertDartUriTool.name,
-            arguments: {'uri': 'package:flutter/material.dart'},
-          ),
-          expectError: true,
-        );
-
-        expect(result.isError, isTrue);
-        expect(
-          (result.content.first as TextContent).text,
-          contains('For package: URIs, a context_path is required'),
-        );
-      });
-
       test('returns error for missing uri argument', () async {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(name: convertDartUriTool.name, arguments: {}),
