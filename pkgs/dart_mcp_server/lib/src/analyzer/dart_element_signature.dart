@@ -8,11 +8,11 @@ import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:dart_mcp/server.dart';
 
 import 'dart_element_finder.dart' as element_finder;
+import 'signature_visitor.dart';
 
 /// Gets the signature of the declaration for an element at a specific location.
 ///
@@ -268,112 +268,10 @@ AstNode? _findContainingDeclaration(AstNode node) {
   return null;
 }
 
-/// Generates a signature from an AST node using its source representation.
+/// Generates a signature from an AST node using the SignatureVisitor.
 String _generateSignatureFromAstNode(AstNode node) {
   final buffer = StringBuffer();
-
-  // For method and function declarations, or any node that might contain them,
-  // we want to omit method bodies to save tokens while keeping the signature
-  final processedCode = _simplifyMethodBodies(node);
-  ;
-  buffer.writeln(processedCode);
-
+  final visitor = SignatureVisitor(buffer);
+  node.accept(visitor);
   return buffer.toString();
-}
-
-/// Simplifies method/function bodies by replacing them with placeholders using an AST visitor.
-String _simplifyMethodBodies(AstNode node) {
-  final source = node.toSource();
-  try {
-    // Create a visitor to collect all method/function nodes that need body simplification
-    final visitor = _MethodBodySimplifierVisitor();
-    node.accept(visitor);
-
-    // Sort replacements in reverse order to avoid affecting offsets
-    final replacements =
-        visitor.replacements
-          ..sort((a, b) => b.startOffset.compareTo(a.startOffset));
-
-    // Apply all replacements
-    var result = source;
-    for (final replacement in replacements) {
-      if (replacement.startOffset >= 0 &&
-          replacement.endOffset <= result.length &&
-          replacement.startOffset < replacement.endOffset) {
-        result = result.replaceRange(
-          replacement.startOffset,
-          replacement.endOffset,
-          replacement.newContent,
-        );
-      }
-    }
-
-    return result;
-  } catch (e) {
-    // If there's any error in processing, return the original source
-    return source;
-  }
-}
-
-/// Represents a replacement operation for simplifying method bodies.
-class _BodyReplacement {
-  final int startOffset;
-  final int endOffset;
-  final String newContent;
-
-  _BodyReplacement(this.startOffset, this.endOffset, this.newContent);
-}
-
-/// AST visitor that finds method and function bodies that need to be simplified.
-class _MethodBodySimplifierVisitor extends RecursiveAstVisitor<void> {
-  final List<_BodyReplacement> replacements = [];
-
-  @override
-  void visitMethodDeclaration(MethodDeclaration node) {
-    _processMethodBody(node.body);
-    super.visitMethodDeclaration(node);
-  }
-
-  @override
-  void visitFunctionDeclaration(FunctionDeclaration node) {
-    _processMethodBody(node.functionExpression.body);
-    super.visitFunctionDeclaration(node);
-  }
-
-  @override
-  void visitFunctionExpression(FunctionExpression node) {
-    _processMethodBody(node.body);
-    super.visitFunctionExpression(node);
-  }
-
-  void _processMethodBody(FunctionBody? body) {
-    if (body == null) return;
-
-    if (body is BlockFunctionBody) {
-      final block = body.block;
-      final openBraceOffset = block.offset;
-      final closeBraceOffset = block.end;
-
-      if (openBraceOffset >= 0 &&
-          closeBraceOffset >= 0 &&
-          closeBraceOffset > openBraceOffset) {
-        // Replace only the content inside the braces, leaving empty braces
-        replacements.add(
-          _BodyReplacement(
-            openBraceOffset + 1, // Start after the opening brace
-            closeBraceOffset - 1, // End before the closing brace
-            '', // Empty content
-          ),
-        );
-      }
-    } else if (body is ExpressionFunctionBody) {
-      final arrowOffset = body.functionDefinition.offset; // Offset of '=>'
-      final endOffset = body.end;
-
-      if (arrowOffset >= 0 && endOffset >= 0 && endOffset > arrowOffset) {
-        // Replace the arrow function with empty block function
-        replacements.add(_BodyReplacement(arrowOffset, endOffset, '{}'));
-      }
-    }
-  }
 }
