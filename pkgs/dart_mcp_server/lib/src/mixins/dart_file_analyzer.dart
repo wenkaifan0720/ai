@@ -337,11 +337,29 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getDartFileOutlineTool = Tool(
     name: 'get_dart_file_outline',
     description:
+        '📋 **SECONDARY TOOL FOR BROAD EXPLORATION** 📋\n\n'
         'Parses a Dart file and returns a skeletal outline with method bodies removed, '
         'preserving class structure, method signatures, imports, and comments. '
-        'This provides a token-efficient overview of the file structure that is ideal '
-        'for understanding code organization, API surfaces, and inheritance relationships '
-        'without the implementation details.',
+        'This provides an overview of the file structure for understanding organization, API surfaces, '
+        'and inheritance relationships without implementation details.\n\n'
+        '⚠️ **WHEN TO USE** (Only when get_signature is insufficient):\n'
+        '• **Unknown class exploration** - When you need to see ALL available methods\n'
+        '• **Architecture analysis** - Understanding inheritance and class relationships\n'
+        '• **Broad API discovery** - When you don\'t know what specific element to target\n'
+        '• **File overview** - Initial exploration of completely unfamiliar codebases\n\n'
+        '🚫 **AVOID IF**:\n'
+        '• You have specific error coordinates (use get_signature instead)\n'
+        '• You need info about a specific method/property (use get_signature)\n'
+        '• You want token efficiency (get_signature is more efficient)\n\n'
+        '🔄 **WORKFLOW INTEGRATION**:\n'
+        '• Use ONLY when get_signature cannot answer your question\n'
+        '• Follow up with get_signature for detailed parameter information\n'
+        '• Combine with convert_dart_uri to explore imported packages\n\n'
+        '💡 **BEST PRACTICES**:\n'
+        '• Use skip_imports=true when focusing on class definitions\n'
+        '• Use skip_comments=true for minimal structural view\n'
+        '• Use omit_skip_comments=true for cleaner outline presentation\n'
+        '• Perfect for understanding unfamiliar codebases or packages',
     annotations: ToolAnnotations(
       title: 'Dart File Outline',
       readOnlyHint: true,
@@ -350,7 +368,9 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
       properties: {
         'uri': Schema.string(
           description:
-              'The URI of the Dart file to analyze. Can be a file:// URI or absolute file path.',
+              'The URI of the Dart file to analyze. Can be a file:// URI or absolute file path. '
+              'Examples: "file:///path/to/main.dart" or "/Users/dev/project/lib/main.dart". '
+              'Use convert_dart_uri first if you have package: or dart: URIs.',
         ),
         'skip_expression_bodies': Schema.bool(
           description:
@@ -388,7 +408,25 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         'Converts Dart-specific URIs to actual file paths that can be accessed by other tools. '
         'Essential for navigating Dart\'s module system and resolving dependencies. '
         'Supports dart: core library URIs (dart:core, dart:io), package: URIs from pub dependencies '
-        '(package:flutter/material.dart), and converts them to the actual file locations on disk.',
+        '(package:flutter/material.dart), and converts them to the actual file locations on disk.\n\n'
+        '🎯 **WHEN TO USE**:\n'
+        '• Package exploration - Navigate to package source files\n'
+        '• Core library investigation - Access dart:core, dart:io implementations\n'
+        '• Following imports/exports - Convert import URIs to readable file paths\n'
+        '• Debugging dependency issues - Verify package locations\n'
+        '• Documentation research - Find actual source files for API exploration\n\n'
+        '🔄 **WORKFLOW INTEGRATION**:\n'
+        '• Use BEFORE get_dart_file_outline to explore package files\n'
+        '• Use BEFORE get_signature when analyzing external dependencies\n'
+        '• Combine with pub_dev_search workflow: search → add → convert → explore\n'
+        '• Bridge between import statements and actual file analysis\n\n'
+        '💡 **COMMON EXAMPLES**:\n'
+        '• "dart:core" → Core Dart library path\n'
+        '• "dart:io" → I/O library path\n'
+        '• "package:flutter/material.dart" → Flutter Material design path\n'
+        '• "package:http/http.dart" → HTTP client package path\n'
+        '• "file:///path/to/file.dart" → Returned as-is (already a file path)\n\n'
+        '⚠️ **REQUIREMENTS**: Requires analysis context with proper package resolution',
     annotations: ToolAnnotations(title: 'Convert Dart URI', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
@@ -410,23 +448,65 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
+        '⚡ **PREFERRED TOOL FOR TARGETED ANALYSIS** ⚡\n'
+        '🎯 **DECISION RULE**: If you have error coordinates or know what element to analyze → USE THIS TOOL\n'
+        '📋 Only use get_dart_file_outline for broad exploration when you don\'t know what to target\n\n'
         'Analyzes a specific location in a Dart file and returns the signature of the element at that position. '
         'This tool performs "Go to Definition" functionality - when you point to a method call, variable reference, '
         'or type usage, it returns the signature of the actual declaration, not the usage site. '
-        'Essential for understanding APIs, method parameters, return types, and class definitions.',
+        'Essential for understanding APIs, method parameters, return types, and class definitions.\n\n'
+        '🚀 **ADVANTAGES** (Use this FIRST):\n'
+        '• **TOKEN EFFICIENT** - Returns only the specific signature you need\n'
+        '• **DIRECT ERROR INTEGRATION** - Use coordinates directly from analyze_files\n'
+        '• **PRECISE TARGETING** - Get exact API information for specific elements\n'
+        '• **IMMEDIATE ANSWERS** - Faster than parsing entire file outlines\n\n'
+        '🚨 **CRITICAL: 0-BASED INDEXING** 🚨\n'
+        '**ALWAYS subtract 1 from IDE coordinates!**\n'
+        '• IDE Line 51, Column 20 → Use line: 50, column: 19\n'
+        '• IDE Line 128, Column 15 → Use line: 127, column: 14\n'
+        '• Tool outputs are already 0-based - use them directly\n\n'
+        '🎯 **STRATEGIC POSITIONING** (Where to Point):\n'
+        '✅ **GOOD TARGETS**:\n'
+        '• Constructor names (for parameter lists)\n'
+        '• Method names (for signatures and parameters)\n'
+        '• Property names (for type information)\n'
+        '• Class names (for class declarations)\n'
+        '• Type declarations in field definitions\n\n'
+        '❌ **BAD TARGETS** (Will Fail):\n'
+        '• Undefined methods/properties (use analyze_files first)\n'
+        '• Error tokens or syntax errors\n'
+        '• Random positions or line 0, column 0\n'
+        '• Comments or whitespace\n\n'
+        '🔄 **WORKFLOW INTEGRATION** (Primary Tool):\n'
+        '• **FIRST CHOICE** after analyze_files - Use error coordinates directly\n'
+        '• **ERROR-DRIVEN WORKFLOW**: analyze_files → get_signature → understand → fix\n'
+        '• Only use get_dart_file_outline if this tool cannot answer your question\n'
+        '• Two-step process for undefined methods:\n'
+        '  1. Position on the object/service name\n'
+        '  2. Navigate to declaration and position on type\n\n'
+        '💡 **COMMON ERROR PATTERNS**:\n'
+        '• Parameter errors → Point to constructor/method name\n'
+        '• Undefined method → Point to object type, then explore class\n'
+        '• Type issues → Point to type declaration\n'
+        '• Import problems → Use convert_dart_uri first',
     annotations: ToolAnnotations(title: 'Get Signature', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
-          description: 'The URI of the Dart file to analyze.',
+          description:
+              'The URI of the Dart file to analyze. '
+              'Examples: "file:///path/to/main.dart" or "/Users/dev/project/lib/main.dart". '
+              'Use convert_dart_uri first if you have package: or dart: URIs.',
         ),
         'line': Schema.int(
           description:
-              'The zero-based line number of the cursor position in the file.',
+              'The zero-based line number of the cursor position in the file. '
+              '🚨 CRITICAL: Subtract 1 from IDE coordinates! IDE Line 51 → Use line: 50',
         ),
         'column': Schema.int(
           description:
-              'The zero-based column number of the cursor position within the line.',
+              'The zero-based column number of the cursor position within the line. '
+              '🚨 CRITICAL: Subtract 1 from IDE coordinates! IDE Column 20 → Use column: 19',
         ),
         'get_containing_declaration': Schema.bool(
           description:
