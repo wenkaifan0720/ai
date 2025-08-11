@@ -68,7 +68,7 @@ Future<AstNode?> getAstNodeAtLocation(
 /// at the given line and column position.
 ///
 /// Returns null if no element is found at that location or if there's an error.
-Future<Element2?> getElementAtLocation(
+Future<Element?> getElementAtLocation(
   AnalysisContext analysisContext,
   String filePath,
   int line,
@@ -88,7 +88,7 @@ Future<Element2?> getElementAtLocation(
 
     // Use the built-in ElementLocator for robust and comprehensive element
     // extraction
-    final element = ElementLocator.locate2(node);
+    final element = ElementLocator.locate(node);
 
     return element;
   } catch (e) {

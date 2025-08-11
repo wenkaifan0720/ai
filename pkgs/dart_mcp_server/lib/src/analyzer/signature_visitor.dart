@@ -123,18 +123,6 @@ class ToSourceVisitor implements AstVisitor<void> {
   }
 
   @override
-  void visitAugmentedExpression(AugmentedExpression node) {
-    sink.write('augmented');
-  }
-
-  @override
-  void visitAugmentedInvocation(AugmentedInvocation node) {
-    _visitToken(node.augmentedKeyword);
-    _visitNode(node.typeArguments);
-    _visitNode(node.arguments);
-  }
-
-  @override
   void visitAwaitExpression(AwaitExpression node) {
     sink.write('await ');
     _visitNode(node.expression);
@@ -249,7 +237,6 @@ class ToSourceVisitor implements AstVisitor<void> {
     _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
     _visitToken(node.augmentKeyword, suffix: ' ');
     _visitToken(node.abstractKeyword, suffix: ' ');
-    _visitToken(node.macroKeyword, suffix: ' ');
     _visitToken(node.sealedKeyword, suffix: ' ');
     _visitToken(node.baseKeyword, suffix: ' ');
     _visitToken(node.interfaceKeyword, suffix: ' ');
@@ -269,7 +256,10 @@ class ToSourceVisitor implements AstVisitor<void> {
   void visitComment(Comment node) {}
 
   @override
-  void visitCommentReference(CommentReference node) {}
+  void visitCommentReference(CommentReference node) {
+    sink.write(node.newKeyword?.lexeme ?? '');
+    _visitNode(prefix: '[', node.expression, suffix: ']');
+  }
 
   @override
   void visitCompilationUnit(CompilationUnit node) {
@@ -388,6 +378,31 @@ class ToSourceVisitor implements AstVisitor<void> {
     sink.write(' while (');
     _visitNode(node.condition);
     sink.write(');');
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation(
+    DotShorthandConstructorInvocation node,
+  ) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitToken(node.period);
+    _visitNode(node.constructorName);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitDotShorthandInvocation(DotShorthandInvocation node) {
+    _visitToken(node.period);
+    _visitNode(node.memberName);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
+    _visitToken(node.period);
+    _visitNode(node.propertyName);
   }
 
   @override
@@ -860,7 +875,7 @@ class ToSourceVisitor implements AstVisitor<void> {
   void visitLibraryDirective(LibraryDirective node) {
     _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
     sink.write('library ');
-    _visitNode(node.name2);
+    _visitNode(node.name);
     sink.write(';');
   }
 
@@ -982,7 +997,7 @@ class ToSourceVisitor implements AstVisitor<void> {
   @override
   void visitNamedType(NamedType node) {
     _visitNode(node.importPrefix);
-    _visitToken(node.name2);
+    _visitToken(node.name);
     _visitNode(node.typeArguments);
     if (node.question != null) {
       sink.write('?');
