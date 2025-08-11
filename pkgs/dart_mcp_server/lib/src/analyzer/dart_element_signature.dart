@@ -8,7 +8,7 @@ import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/features.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/element2.dart';
 import 'package:dart_mcp/server.dart';
 
 import 'dart_element_finder.dart' as element_finder;
@@ -55,15 +55,23 @@ Future<CallToolResult> getElementDeclarationSignature(
     final declarationElement = _findDeclarationElement(element);
 
     // Check if this is a valid element that we can follow to its declaration
-    final declarationSource = declarationElement.source;
-    final nameOffset = declarationElement.nameOffset;
+    // For Element2: source access via firstFragment.libraryFragment?.source, nameOffset via firstFragment.nameOffset2
+    final declarationSource =
+        declarationElement.firstFragment.libraryFragment?.source;
+    final nameOffset = declarationElement.firstFragment.nameOffset2;
 
     // For certain element types (like CompilationUnit, imports, etc.)
     // or when we can't find a valid declaration, return an error
+    // Special handling for constructors which might have null nameOffset2
+    final isConstructor = declarationElement.runtimeType.toString().contains(
+      'ConstructorElement',
+    );
     if (declarationSource == null ||
-        nameOffset < 0 ||
+        (!isConstructor && nameOffset == null) ||
+        (!isConstructor && nameOffset != null && nameOffset < 0) ||
         declarationElement.displayName.isEmpty ||
-        declarationElement.runtimeType.toString().contains('CompilationUnit')) {
+        declarationElement.runtimeType.toString().contains('CompilationUnit') ||
+        declarationElement.runtimeType.toString().contains('LibraryElement')) {
       return CallToolResult(
         content: [
           TextContent(
@@ -71,7 +79,7 @@ Future<CallToolResult> getElementDeclarationSignature(
                 'Cannot follow declaration for this element type: ${declarationElement.runtimeType}. '
                 'Element: ${declarationElement.displayName}, '
                 'Source: ${declarationSource?.fullName ?? 'null'}, '
-                'NameOffset: $nameOffset',
+                'NameOffset: ${nameOffset ?? 'null'}',
           ),
         ],
         isError: true,
@@ -92,8 +100,21 @@ Future<CallToolResult> getElementDeclarationSignature(
       );
     }
 
-    // Find the node at the nameOffset
-    final targetNode = _findNodeAtOffset(unit, nameOffset);
+    // Find the node at the nameOffset (handle constructors with null nameOffset)
+    AstNode? targetNode;
+    if (nameOffset != null) {
+      targetNode = _findNodeAtOffset(unit, nameOffset);
+    } else if (isConstructor) {
+      // For constructors with null nameOffset, try to use the enclosing class
+      final enclosingElement = declarationElement.enclosingElement2;
+      if (enclosingElement != null) {
+        final enclosingOffset = enclosingElement.firstFragment.nameOffset2;
+        if (enclosingOffset != null) {
+          targetNode = _findNodeAtOffset(unit, enclosingOffset);
+        }
+      }
+    }
+
     if (targetNode == null) {
       return CallToolResult(
         content: [
@@ -134,22 +155,19 @@ Future<CallToolResult> getElementDeclarationSignature(
 /// If the element is already a declaration, returns it as-is.
 /// If it's a reference to another element, follows it to the declaration.
 /// For implicit property accessor elements, returns the associated variable element.
-Element _findDeclarationElement(Element element) {
-  // Handle PropertyAccessorElement (like implicit getters for widget parameters)
-  if (element is PropertyAccessorElement) {
+Element2 _findDeclarationElement(Element2 element) {
+  // Handle PropertyAccessorElement2 (like implicit getters for widget parameters)
+  if (element is PropertyAccessorElement2) {
     // For implicit getters/setters, get the variable they're associated with
-    final variable = element.variable2;
+    final variable = element.variable3;
     if (variable != null) {
-      return variable.declaration;
+      // In Element2, access declaration through firstFragment.element
+      return variable.firstFragment.element;
     }
   }
 
-  // If this element has a declaration, follow it
-  if (element.declaration case final declaration?) {
-    return declaration;
-  }
-
-  // If it's already a declaration, return it
+  // In Element2 API, elements represent declarations directly
+  // Use firstFragment.element to get the declaration if needed
   return element;
 }
 

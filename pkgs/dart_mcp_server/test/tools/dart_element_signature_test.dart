@@ -301,7 +301,11 @@ void main() {
           signatureText,
           contains('Cannot follow declaration for this element type'),
         );
-        expect(signatureText, contains('CompilationUnit'));
+        // With Element2, we get LibraryElementImpl instead of CompilationUnit
+        expect(
+          signatureText,
+          anyOf(contains('CompilationUnit'), contains('LibraryElement')),
+        );
       });
 
       test('handles invalid file path', () async {

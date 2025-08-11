@@ -5,7 +5,7 @@
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/element2.dart';
 // ignore: implementation_imports
 import 'package:analyzer/src/dart/ast/element_locator.dart';
 import 'package:path/path.dart' as path;
@@ -62,13 +62,13 @@ Future<AstNode?> getAstNodeAtLocation(
   }
 }
 
-/// Gets the Element at a specific location in a Dart file.
+/// Gets the Element2 at a specific location in a Dart file.
 ///
 /// This method finds the semantic element (class, method, variable, etc.)
 /// at the given line and column position.
 ///
 /// Returns null if no element is found at that location or if there's an error.
-Future<Element?> getElementAtLocation(
+Future<Element2?> getElementAtLocation(
   AnalysisContext analysisContext,
   String filePath,
   int line,
@@ -88,7 +88,7 @@ Future<Element?> getElementAtLocation(
 
     // Use the built-in ElementLocator for robust and comprehensive element
     // extraction
-    final element = ElementLocator.locate(node);
+    final element = ElementLocator.locate2(node);
 
     return element;
   } catch (e) {
