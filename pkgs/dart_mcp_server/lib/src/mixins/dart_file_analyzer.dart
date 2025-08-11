@@ -265,11 +265,12 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     }
 
     return _withAnalysisContext(request, (context, filePath) async {
+      // Convert from 1-based (user input) to 0-based (internal functions)
       return element_signature.getElementDeclarationSignature(
         context,
         filePath,
-        line,
-        column,
+        line - 1,
+        column - 1,
         getContainingDeclaration: getContainingDeclaration,
       );
     });
@@ -460,11 +461,6 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         '• **DIRECT ERROR INTEGRATION** - Use coordinates directly from analyze_files\n'
         '• **PRECISE TARGETING** - Get exact API information for specific elements\n'
         '• **IMMEDIATE ANSWERS** - Faster than parsing entire file outlines\n\n'
-        '🚨 **CRITICAL: 0-BASED INDEXING** 🚨\n'
-        '**ALWAYS subtract 1 from IDE coordinates!**\n'
-        '• IDE Line 51, Column 20 → Use line: 50, column: 19\n'
-        '• IDE Line 128, Column 15 → Use line: 127, column: 14\n'
-        '• Tool outputs are already 0-based - use them directly\n\n'
         '🎯 **STRATEGIC POSITIONING** (Where to Point):\n'
         '✅ **GOOD TARGETS**:\n'
         '• Constructor names (for parameter lists)\n'
@@ -500,13 +496,11 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         ),
         'line': Schema.int(
           description:
-              'The zero-based line number of the cursor position in the file. '
-              '🚨 CRITICAL: Subtract 1 from IDE coordinates! IDE Line 51 → Use line: 50',
+              'The one-based line number of the cursor position in the file.',
         ),
         'column': Schema.int(
           description:
-              'The zero-based column number of the cursor position within the line. '
-              '🚨 CRITICAL: Subtract 1 from IDE coordinates! IDE Column 20 → Use column: 19',
+              'The one-based column number of the cursor position within the line.',
         ),
         'get_containing_declaration': Schema.bool(
           description:

@@ -274,6 +274,24 @@ base mixin DartAnalyzerSupport
           continue;
         }
         diagnosticJson[ParameterNames.uri] = entry.key.toString();
+
+        // Convert coordinates from 0-based (LSP) to 1-based (user-friendly)
+        final range = diagnosticJson['range'] as Map<String, Object?>?;
+        if (range != null) {
+          final start = range['start'] as Map<String, Object?>?;
+          final end = range['end'] as Map<String, Object?>?;
+
+          if (start != null) {
+            start['line'] = (start['line'] as int) + 1;
+            start['character'] = (start['character'] as int) + 1;
+          }
+
+          if (end != null) {
+            end['line'] = (end['line'] as int) + 1;
+            end['character'] = (end['character'] as int) + 1;
+          }
+        }
+
         messages.add(TextContent(text: jsonEncode(diagnosticJson)));
       }
     }
@@ -516,7 +534,8 @@ base mixin DartAnalyzerSupport
   @visibleForTesting
   static final analyzeFilesTool = Tool(
     name: 'analyze_files',
-    description: 'Analyzes the entire project for errors.',
+    description:
+        'Analyzes the entire project for errors. Returns diagnostic information with 1-based line and column coordinates.',
     inputSchema: Schema.object(
       properties: {
         ParameterNames.maxSeverity: Schema.int(
@@ -622,10 +641,10 @@ final _locationSchema = Schema.object(
   properties: {
     ParameterNames.uri: Schema.string(description: 'The URI of the file.'),
     ParameterNames.line: Schema.int(
-      description: 'The zero-based line number of the cursor position.',
+      description: 'The one-based line number of the cursor position.',
     ),
     ParameterNames.column: Schema.int(
-      description: 'The zero-based column number of the cursor position.',
+      description: 'The one-based column number of the cursor position.',
     ),
   },
   required: [ParameterNames.uri, ParameterNames.line, ParameterNames.column],
@@ -636,16 +655,16 @@ final _rangeSchema = Schema.object(
   properties: {
     ParameterNames.uri: Schema.string(description: 'The URI of the file.'),
     ParameterNames.startLine: Schema.int(
-      description: 'The zero-based line number of the start of the range.',
+      description: 'The one-based line number of the start of the range.',
     ),
     ParameterNames.startColumn: Schema.int(
-      description: 'The zero-based column number of the start of the range.',
+      description: 'The one-based column number of the start of the range.',
     ),
     ParameterNames.endLine: Schema.int(
-      description: 'The zero-based line number of the end of the range.',
+      description: 'The one-based line number of the end of the range.',
     ),
     ParameterNames.endColumn: Schema.int(
-      description: 'The zero-based column number of the end of the range.',
+      description: 'The one-based column number of the end of the range.',
     ),
   },
   required: [

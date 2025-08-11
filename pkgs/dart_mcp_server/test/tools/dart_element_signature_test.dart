@@ -55,7 +55,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 10, // Zero-based line number for MyApp class (line 11)
+              'line': 11, // One-based line number for MyApp class (line 11)
               'column': 6, // Position within "class MyApp"
             },
           ),
@@ -86,7 +86,7 @@ void main() {
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'line':
-                  25, // Zero-based line number for MyHomePage class (line 26)
+                  26, // One-based line number for MyHomePage class (line 26)
               'column': 6, // Position within "class MyHomePage"
             },
           ),
@@ -115,7 +115,7 @@ void main() {
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'line':
-                  34, // Zero-based line number for _MyHomePageState class (line 35)
+                  35, // One-based line number for _MyHomePageState class (line 35)
               'column': 6, // Position within "class _MyHomePageState"
             },
           ),
@@ -162,7 +162,7 @@ void main() {
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'line':
-                  14, // Zero-based line number for build method in MyApp (line 15)
+                  15, // One-based line number for build method in MyApp (line 15)
               'column': 10, // Position within "Widget build"
               'get_containing_declaration': false,
             },
@@ -196,7 +196,7 @@ void main() {
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'line':
-                  41, // Zero-based line number for _incrementCounter method (line 42)
+                  42, // One-based line number for _incrementCounter method (line 42)
               'column': 8,
               'get_containing_declaration': false,
             },
@@ -228,7 +228,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 35, // Zero-based line number for _counter field (line 36)
+              'line': 36, // One-based line number for _counter field (line 36)
               'column': 6, // Position within "int _counter"
               'get_containing_declaration': false,
             },
@@ -259,7 +259,7 @@ void main() {
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
               'line':
-                  26, // Zero-based line number for MyHomePage constructor (line 27)
+                  27, // One-based line number for MyHomePage constructor (line 27)
               'column': 12, // Position within "const MyHomePage"
               'get_containing_declaration': false,
             },
@@ -288,7 +288,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 1, // Line with just whitespace or comment
+              'line': 2, // Line with just whitespace or comment
               'column': 0,
             },
           ),
@@ -314,8 +314,8 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': 'file:///nonexistent/file.dart',
-              'line': 0,
-              'column': 0,
+              'line': 1,
+              'column': 1,
             },
           ),
         );
@@ -360,8 +360,8 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': -1,
-              'column': -1,
+              'line': 0,
+              'column': 0,
             },
           ),
         );
@@ -387,7 +387,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 10, // MyApp class
+              'line': 11, // MyApp class
               'column': 6,
             },
           ),
@@ -416,7 +416,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 10, // MyApp class (public)
+              'line': 11, // MyApp class (public)
               'column': 6,
             },
           ),
@@ -434,7 +434,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 35, // _counter field (private)
+              'line': 36, // _counter field (private)
               'column': 6, // Position within "int _counter"
             },
           ),
@@ -464,7 +464,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 14, // build method in MyApp
+              'line': 15, // build method in MyApp
               'column': 10,
               'get_containing_declaration': true,
             },
@@ -499,7 +499,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 35, // _counter field
+              'line': 36, // _counter field
               'column': 6,
               'get_containing_declaration': true,
             },
@@ -530,7 +530,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 6, // main function (line 7, 0-based = 6)
+              'line': 7, // main function (line 7, 1-based = 7)
               'column': 5,
               'get_containing_declaration': true,
             },
@@ -558,7 +558,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 0, // import statement area
+              'line': 1, // import statement area
               'column': 0,
               'get_containing_declaration': true,
             },
@@ -589,7 +589,7 @@ void main() {
             name: getSignatureTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'line': 14, // build method in MyApp
+              'line': 15, // build method in MyApp
               'column': 10,
               // get_containing_declaration not specified, should default to true
             },
@@ -628,7 +628,7 @@ void main() {
               name: getSignatureTool.name,
               arguments: {
                 'uri': Uri.file(testFilePath).toString(),
-                'line': 52, // Text(widget.title) (line 53, 0-based = 52)
+                'line': 53, // Text(widget.title) (line 53, 1-based = 53)
                 'column': 27, // clicking on 'title' in 'widget.title'
                 'get_containing_declaration': false,
               },
@@ -660,7 +660,7 @@ void main() {
               name: getSignatureTool.name,
               arguments: {
                 'uri': Uri.file(testFilePath).toString(),
-                'line': 52, // Text(widget.title) (line 53, 0-based = 52)
+                'line': 53, // Text(widget.title) (line 53, 1-based = 53)
                 'column': 27, // clicking on 'title' in 'widget.title'
                 'get_containing_declaration': true,
               },
