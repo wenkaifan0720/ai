@@ -5,17 +5,17 @@ on:
   # Run CI on all PRs (against any branch) and on pushes to the main branch.
   pull_request:
     paths:
-      - '.github/workflows/dart_mcp_server.yaml'
-      - 'pkgs/dart_mcp_server/**'
-      - 'pkgs/dart_mcp/**'
+      - ".github/workflows/dart_mcp_server.yaml"
+      - "pkgs/dart_mcp_server/**"
+      - "pkgs/dart_mcp/**"
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - '.github/workflows/dart_mcp_server.yaml'
-      - 'pkgs/dart_mcp_server/**'
-      - 'pkgs/dart_mcp/**'
+      - ".github/workflows/dart_mcp_server.yaml"
+      - "pkgs/dart_mcp_server/**"
+      - "pkgs/dart_mcp/**"
   schedule:
-    - cron: '0 0 * * 0' # weekly
+    - cron: "0 0 * * 0" # weekly
 
 defaults:
   run:
@@ -28,13 +28,23 @@ jobs:
       fail-fast: false
       matrix:
         flutterSdk:
-          - stable
+          - beta
           - master
         os:
           - ubuntu-latest
           - windows-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Cache Pub hosted dependencies
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: "~/.pub-cache/hosted"
+          key: "pub-cache-hosted;${{ matrix.flutterSdk }};${{ matrix.os }}"
+      - name: Cache Pub sdk git dependency
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: "~/.pub-cache/git/sdk-b0838eac58308fc4e6654ca99eda75b30649c08f/"
+          key: "pub-cache-git;${{ matrix.flutterSdk }};${{ matrix.os }}"
       # We need the flutter SDK in order to run the counter app for integration
       # testing.
       - uses: subosito/flutter-action@v2
@@ -48,10 +58,12 @@ jobs:
         run: flutter pub get
 
       - run: dart pub get
-
       - run: dart analyze --fatal-infos
-
       - run: dart format --output=none --set-exit-if-changed .
         if: ${{ matrix.flutterSdk == 'master' }}
+
+      # If this fails, you need to run 'dart tool/update_readme.dart'.
+      - run: dart tool/update_readme.dart
+      - run: git diff --exit-code README.md || (echo 'README.md needs to be updated. Run "dart tool/update_readme.dart"' && false)
 
       - run: dart test

@@ -1,143 +1,159 @@
 The Dart Tooling MCP Server exposes Dart and Flutter development tool actions to compatible AI-assistant clients.
 
-[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=dart_tooling&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoiZGFydCBtY3Atc2VydmVyIC0tZXhwZXJpbWVudGFsLW1jcC1zZXJ2ZXIgLS1mb3JjZS1yb290cy1mYWxsYmFjayJ9)
-
 ## Status
 
 WIP. This package is still experimental and is likely to evolve quickly.
 
-## Tools
+## Set up your MCP client
 
-| Tool Name | Feature Group | Description |
-| --- | --- | --- |
-| `analyze_files` | `static analysis` | Analyzes the entire project for errors. |
-| `signature_help` | `static_analysis` | Gets signature information for usage at a given cursor position. |
-| `hover` | `static_analysis` | Gets the hover information for a given cursor position. |
-| `resolve_workspace_symbol` | `static analysis` | Look up a symbol or symbols in all workspaces by name. |
-| `dart_fix` | `static tool` | Runs `dart fix --apply` for the given project roots. |
-| `dart_format` | `static tool` | Runs `dart format .` for the given project roots. |
-| `pub` | `static tool` | Runs a `dart pub` command for the given project roots. |
-| `pub_dev_search` | `package search` | Searches pub.dev for packages relevant to a given search query. |
-| `get_runtime_errors` | `runtime analysis` | Retrieves the list of runtime errors that have occurred in the active Dart or Flutter application. |
-| `take_screenshot` | `runtime analysis` | Takes a screenshot of the active Flutter application in its current state. |
-| `get_widget_tree` | `runtime analysis` | Retrieves the widget tree from the active Flutter application. |
-| `get_selected_widget` | `runtime analysis` | Retrieves the selected widget from the active Flutter application. |
-| `hot_reload` | `runtime tool` | Performs a hot reload of the active Flutter application. |
-| `connect_dart_tooling_daemon`* | `configuration` | Connects to the locally running Dart Tooling Daemon. |
-| `get_active_location` | `editor` | Gets the active cursor position in the connected editor (if available). |
-| `run_tests` | `static tool` | Runs tests for the given project roots. |
-| `create_project` | `static tool` | Creates a new Dart or Flutter project. |
+> Note: all of the following set up instructions require Dart 3.9.0-163.0.dev or later.
 
-> *Experimental: may be removed.
+<!-- Note: since many of our tools require access to the Dart Tooling Daemon, we may want
+to be cautious about recommending tools where access to the Dart Tooling Daemon does not exist. -->
 
-## Usage
-
-This server only supports the STDIO transport mechanism and runs locally on
-your machine. Many of the tools require that your MCP client has `roots`
-support, and usage of the tools is scoped to only these directories.
+The Dart MCP server can work with any MCP client that supports standard I/O (stdio) as the
+transport medium. To access all the features of the Dart MCP server, an MCP client must support
+[Tools](https://modelcontextprotocol.io/docs/concepts/tools) and
+[Resources](https://modelcontextprotocol.io/docs/concepts/resources). For the best development
+experience with the Dart MCP server, an MCP client should also support
+[Roots](https://modelcontextprotocol.io/docs/concepts/roots).
 
 If you are using a client that claims it supports roots but does not actually
 set them, pass `--force-roots-fallback` which will instead enable tools for
 managing the roots.
 
-### Running from the SDK
+Here are specific instructions for some popular tools:
 
-For most users, you should just use the `dart mcp-server` command. For now you
-also need to provide `--experimental-mcp-server` in order for the command to
-succeed.
+### Gemini CLI
 
-### Running a local checkout
-
-The server entrypoint lives at `bin/main.dart`, and can be ran however you
-choose, but the easiest way is to run it as a globally activated package.
-
-You can globally activate it from path for local development:
-
-```sh
-dart pub global activate -s path .
-```
-
-Or from git:
-
-```sh
-dart pub global activate -s git https://github.com/dart-lang/ai.git \
-  --git-path pkgs/dart_mcp_server/
-```
-
-And then, assuming the pub cache bin dir is [on your PATH][set-up-path], the
-`dart_mcp_server` command will run it, and recompile as necessary.
-
-[set-up-path]: https://dart.dev/tools/pub/cmd/pub-global#running-a-script-from-your-path
-
-**Note:**: For some clients, depending on how they launch the MCP server and how
-tolerant they are, you may need to compile it to exe to avoid extra output on
-stdout:
-
-```sh
-dart compile exe bin/main.dart
-```
-
-And then provide the path to the executable instead of using the globally
-activated `dart_mcp_server` command.
-
-### With the example WorkflowBot
-
-After compiling the binary, you can run the example [workflow bot][workflow_bot]
-to interact with the server. Note that the workflow bot sets the current
-directory as the root directory, so if your server expects a certain root
-directory you will want to run the command below from there (and alter the
-paths as necessary). For example, you may want to run this command from the
-directory of the app you wish to test the server against.
-
-[workflow_bot]: https://github.com/dart-lang/ai/tree/main/mcp_examples/bin/workflow_bot
-
-
-```dart
-dart pub add "dart_mcp_examples:{git: {url: https://github.com/dart-lang/ai.git, path: mcp_examples}}"
-dart run dart_mcp_examples:workflow_client --server dart_mcp_server
-```
-
-### With Cursor
-
-The following button should work for most users:
-
-[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=dart_tooling&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoiZGFydCBtY3Atc2VydmVyIC0tZXhwZXJpbWVudGFsLW1jcC1zZXJ2ZXIgLS1mb3JjZS1yb290cy1mYWxsYmFjayJ9)
-
-To manually install it, go to Cursor -> Settings -> Cursor Settings and select "MCP".
-
-Then, click "Add new global MCP server".
-
-If you are directly editing your mcp.json file, it should look like this:
+To configure the [Gemini CLI](https://github.com/google-gemini/gemini-cli) to use the Dart MCP
+server, edit the `.gemini/settings.json` file in your local project (configuration will only
+apply to this project) or edit the global `~/.gemini/settings.json` file in your home directory
+(configuration will apply for all projects).
 
 ```json
 {
   "mcpServers": {
-    "dart_mcp": {
+    "dart": {
       "command": "dart",
       "args": [
         "mcp-server",
-        "--experimental-mcp-server",
-        "--force-roots-fallback"
+        "--experimental-mcp-server", // Can be removed for Dart 3.9.0 or later.
       ]
     }
   }
 }
 ```
 
-Each time you make changes to the server, you'll need to restart the server on
-the MCP configuration page or reload the Cursor window (Developer: Reload Window
-from the Command Palette) to see the changes.
+For more information, see the official Gemini CLI documentation for
+[setting up MCP servers](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#how-to-set-up-your-mcp-server).
 
-## Development
+### Gemini Code Assist in VS Code
 
-For local development, use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector).
+> Note: this currently requires the "Insiders" channel. Follow
+[instructions](https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer#before-you-begin)
+to enable this build.
 
-1. Run the inspector with no arguments:
-    ```shell
-    npx @modelcontextprotocol/inspector
-    ```
+[Gemini Code Assist](https://codeassist.google/)'s
+[Agent mode](https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer) integrates the Gemini CLI to provide a powerful
+AI agent directly in your IDE. To configure Gemini Code Assist to use the Dart MCP
+server, follow the instructions to [configure the Gemini](#gemini-cli) CLI above.
 
-2. Open the MCP Inspector in the browser and enter `dart_mcp_server` in
-the "Command" field.
+You can verify the MCP server has been configured properly by typing `/mcp` in the chat window in Agent mode.
 
-3. Click "Connect" to connect to the server and debug using the MCP Inspector.
+![Gemini Code Assist list mcp tools](_docs/gca_mcp_list_tools.png "Gemini Code Assist list MCP tools")
+
+For more information see the official Gemini Code Assist documentation for
+[using agent mode](https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer#before-you-begin).
+
+<!-- ### Android Studio -->
+<!-- TODO(https://github.com/dart-lang/ai/issues/199): once we are confident that the
+Dart MCP server will work well with Android Studio's MCP support, add documentation here
+for configuring the server in Android Studio. -->
+
+### Cursor
+
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=dart&config=eyJ0eXBlIjoic3RkaW8iLCJjb21tYW5kIjoiZGFydCBtY3Atc2VydmVyIC0tZXhwZXJpbWVudGFsLW1jcC1zZXJ2ZXIgLS1mb3JjZS1yb290cy1mYWxsYmFjayJ9)
+
+The easiest way to configure the Dart MCP server with Cursor is by clicking the "Add to Cursor"
+button above.
+
+Alternatively, you can configure the server manually. Go to **Cursor -> Settings -> Cursor Settings > Tools & Integrations**, and then click **"Add Custom MCP"** or **"New MCP Server"**
+depending on whether you already have other MCP servers configured. Edit the `.cursor/mcp.json` file in your local project (configuration will only apply to this project) or
+edit the global `~/.cursor/mcp.json` file in your home directory (configuration will apply for
+all projects) to configure the Dart MCP server:
+
+```json
+{
+  "mcpServers": {
+    "dart": {
+      "command": "dart",
+      "args": [
+        "mcp-server",
+        "--experimental-mcp-server", // Can be removed for Dart 3.9.0 or later
+        "--force-roots-fallback" // Workaround for a Cursor issue with Roots support
+      ]
+    }
+  }
+}
+```
+
+For more information, see the official Cursor documentation for
+[installing MCP servers](https://docs.cursor.com/context/model-context-protocol#installing-mcp-servers).
+
+### GitHub Copilot in VS Code
+
+<!-- TODO: once the dart.mcpServer setting is not hidden, we may be able
+to provide a deep link to the Dart Extension Settings UI for users to
+enable the server. See docs: https://code.visualstudio.com/docs/configure/settings#_settings-editor.
+This may be preferable to adding the deep link button to VS Code's mcp settings. -->
+
+> Note: requires Dart-Code VS Code extension v3.114 or later.
+
+To configure the Dart MCP server with Copilot or any other AI agent that supports the
+[VS Code MCP API](https://code.visualstudio.com/api/extension-guides/mcp), add the following
+to your VS Code user settings (Command Palette > **Preferences: Open User Settings (JSON)**):
+```json
+"dart.mcpServer": true
+```
+
+By adding this setting, the Dart VS Code extension will register the Dart MCP Server
+configuration with VS Code so that you don't have to manually configure the server.
+Copilot will then automatically configure the Dart MCP server on your behalf. This is
+a global setting. If you'd like the setting to apply only to a specific workspace, add
+the entry to your workspace settings (Command Palette > **Preferences: Open Workspace Settings (JSON)**)
+instead.
+
+For more information, see the official VS Code documentation for
+[enabling MCP support](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_enable-mcp-support-in-vs-code).
+
+## Tools
+
+<!-- run 'dart tool/update_readme.dart' to update -->
+
+<!-- generated -->
+
+| Tool Name | Title | Description |
+| --- | --- | --- |
+| `connect_dart_tooling_daemon` | Connect to DTD | Connects to the Dart Tooling Daemon. You should get the uri either from available tools or the user, do not just make up a random URI to pass. When asking the user for the uri, you should suggest the "Copy DTD Uri to clipboard" action. When reconnecting after losing a connection, always request a new uri first. |
+| `get_runtime_errors` | Get runtime errors | Retrieves the most recent runtime errors that have occurred in the active Dart or Flutter application. Requires "connect_dart_tooling_daemon" to be successfully called first. |
+| `hot_reload` | Hot reload | Performs a hot reload of the active Flutter application. This is to apply the latest code changes to the running application. Requires "connect_dart_tooling_daemon" to be successfully called first. |
+| `get_widget_tree` | Get widget tree | Retrieves the widget tree from the active Flutter application. Requires "connect_dart_tooling_daemon" to be successfully called first. |
+| `get_selected_widget` | Get selected widget | Retrieves the selected widget from the active Flutter application. Requires "connect_dart_tooling_daemon" to be successfully called first. |
+| `set_widget_selection_mode` | Set Widget Selection Mode | Enables or disables widget selection mode in the active Flutter application. Requires "connect_dart_tooling_daemon" to be successfully called first. This is not necessary when using flutter driver, only use it when you want the user to select a widget. |
+| `get_active_location` | Get Active Editor Location | Retrieves the current active location (e.g., cursor position) in the connected editor. Requires "connect_dart_tooling_daemon" to be successfully called first. |
+| `flutter_driver` | Flutter Driver | Run a flutter driver command |
+| `pub_dev_search` | pub.dev search | Searches pub.dev for packages relevant to a given search query. The response will describe each result with its download count, package description, topics, license, and publisher. |
+| `remove_roots` | Remove roots | Removes one or more project roots previously added via the add_roots tool. |
+| `add_roots` | Add roots | Adds one or more project roots. Tools are only allowed to run under these roots, so you must call this function before passing any roots to any other tools. |
+| `dart_fix` | Dart fix | Runs `dart fix --apply` for the given project roots. |
+| `dart_format` | Dart format | Runs `dart format .` for the given project roots. |
+| `run_tests` | Run tests | Run Dart or Flutter tests with an agent centric UX. ALWAYS use instead of `dart test` or `flutter test` shell commands. |
+| `create_project` | Create project | Creates a new Dart or Flutter project. |
+| `pub` | pub | Runs a pub command for the given project roots, like `dart pub get` or `flutter pub add`. |
+| `analyze_files` | Analyze projects | Analyzes specific paths, or the entire project, for errors. |
+| `resolve_workspace_symbol` | Project search | Look up a symbol or symbols in all workspaces by name. Can be used to validate that a symbol exists or discover small spelling mistakes, since the search is fuzzy. |
+| `signature_help` | Signature help | Get signature help for an API being used at a given cursor position in a file. |
+| `hover` | Hover information | Get hover information at a given cursor position in a file. This can include documentation, type information, etc for the text at that position. |
+
+<!-- generated -->

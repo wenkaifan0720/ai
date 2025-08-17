@@ -13,7 +13,10 @@ import 'package:language_server_protocol/protocol_generated.dart' as lsp;
 import 'package:meta/meta.dart';
 
 import '../lsp/wire_format.dart';
+import '../utils/analytics.dart';
+import '../utils/cli_utils.dart';
 import '../utils/constants.dart';
+import '../utils/file_system.dart';
 import '../utils/sdk.dart';
 
 /// Mix this in to any MCPServer to add support for analyzing Dart projects.
@@ -21,13 +24,13 @@ import '../utils/sdk.dart';
 /// The MCPServer must already have the [ToolsSupport] and [LoggingSupport]
 /// mixins applied.
 base mixin DartAnalyzerSupport
-    on ToolsSupport, LoggingSupport, RootsTrackingSupport
+    on ToolsSupport, LoggingSupport, RootsTrackingSupport, FileSystemSupport
     implements SdkSupport {
   /// The LSP server connection for the analysis server.
-  late final Peer _lspConnection;
+  Peer? _lspConnection;
 
   /// The actual process for the LSP server.
-  late final Process _lspServer;
+  Process? _lspServer;
 
   /// The current diagnostics for a given file.
   Map<Uri, List<lsp.Diagnostic>> diagnostics = {};
@@ -67,12 +70,9 @@ base mixin DartAnalyzerSupport
 
     if (unsupportedReasons.isEmpty) {
       registerTool(analyzeFilesTool, _analyzeFiles);
-
-      /// I don't find the following tools useful or working properly (e.g. the signature help tool)
-      //registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
-      //registerTool(signatureHelpTool, _signatureHelp);
-      //registerTool(hoverTool, _hover);
-      //registerTool(codeActionTool, _codeAction);
+      registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
+      registerTool(signatureHelpTool, _signatureHelp);
+      registerTool(hoverTool, _hover);
     }
 
     // Don't call any methods on the client until we are fully initialized
@@ -94,7 +94,7 @@ base mixin DartAnalyzerSupport
   ///
   /// On failure, returns a reason for the failure.
   Future<String?> _initializeAnalyzerLspServer() async {
-    _lspServer = await Process.start(sdk.dartExecutablePath, [
+    final lspServer = await Process.start(sdk.dartExecutablePath, [
       'language-server',
       // Required even though it is documented as the default.
       // https://github.com/dart-lang/sdk/issues/60574
@@ -104,7 +104,8 @@ base mixin DartAnalyzerSupport
       // '--protocol-traffic-log',
       // 'language-server-protocol.log',
     ]);
-    _lspServer.stderr
+    _lspServer = lspServer;
+    lspServer.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) async {
@@ -112,25 +113,21 @@ base mixin DartAnalyzerSupport
           log(LoggingLevel.warning, line, logger: 'DartLanguageServer');
         });
 
-    _lspConnection =
-        Peer(lspChannel(_lspServer.stdout, _lspServer.stdin))
-          ..registerMethod(
-            lsp.Method.textDocument_publishDiagnostics.toString(),
-            _handleDiagnostics,
-          )
-          ..registerMethod(r'$/analyzerStatus', _handleAnalyzerStatus)
-          ..registerMethod(
-            'client/registerCapability',
-            _handleRegisterCapability,
-          )
-          ..registerFallback((Parameters params) {
-            log(
-              LoggingLevel.debug,
-              () => 'Unhandled LSP message: ${params.method} - ${params.asMap}',
-            );
-          });
+    final lspConnection = Peer(lspChannel(lspServer.stdout, lspServer.stdin))
+      ..registerMethod(
+        lsp.Method.textDocument_publishDiagnostics.toString(),
+        _handleDiagnostics,
+      )
+      ..registerMethod(r'$/analyzerStatus', _handleAnalyzerStatus)
+      ..registerFallback((Parameters params) {
+        log(
+          LoggingLevel.debug,
+          () => 'Unhandled LSP message: ${params.method} - ${params.asMap}',
+        );
+      });
+    _lspConnection = lspConnection;
 
-    unawaited(_lspConnection.listen());
+    unawaited(lspConnection.listen());
 
     log(LoggingLevel.debug, 'Connecting to analyzer lsp server');
     lsp.InitializeResult? initializeResult;
@@ -138,7 +135,7 @@ base mixin DartAnalyzerSupport
     try {
       // Initialize with the server.
       initializeResult = lsp.InitializeResult.fromJson(
-        (await _lspConnection.sendRequest(
+        (await lspConnection.sendRequest(
               lsp.Method.initialize.toString(),
               lsp.InitializeParams(
                 capabilities: lsp.ClientCapabilities(
@@ -185,11 +182,6 @@ base mixin DartAnalyzerSupport
                     publishDiagnostics:
                         lsp.PublishDiagnosticsClientCapabilities(),
                     signatureHelp: lsp.SignatureHelpClientCapabilities(),
-                    codeAction: lsp.CodeActionClientCapabilities(
-                      dynamicRegistration: true,
-                      isPreferredSupport: true,
-                    ),
-                    definition: lsp.DefinitionClientCapabilities(),
                   ),
                 ),
               ).toJson(),
@@ -233,10 +225,10 @@ base mixin DartAnalyzerSupport
     }
 
     if (error != null) {
-      _lspServer.kill();
-      await _lspConnection.close();
+      lspServer.kill();
+      await lspConnection.close();
     } else {
-      _lspConnection.sendNotification(
+      lspConnection.sendNotification(
         lsp.Method.initialized.toString(),
         lsp.InitializedParams().toJson(),
       );
@@ -247,8 +239,8 @@ base mixin DartAnalyzerSupport
   @override
   Future<void> shutdown() async {
     await super.shutdown();
-    _lspServer.kill();
-    await _lspConnection.close();
+    _lspServer?.kill();
+    await _lspConnection?.close();
   }
 
   /// Implementation of the [analyzeFilesTool], analyzes all the files in all
@@ -259,39 +251,57 @@ base mixin DartAnalyzerSupport
     final errorResult = await _ensurePrerequisites(request);
     if (errorResult != null) return errorResult;
 
-    // Get the maximum severity level to include (default to 1 = Error only)
-    final maxSeverity =
-        request.arguments?[ParameterNames.maxSeverity] as int? ?? 1;
+    var rootConfigs = (request.arguments?[ParameterNames.roots] as List?)
+        ?.cast<Map<String, Object?>>();
+    final allRoots = await roots;
+
+    if (rootConfigs != null && rootConfigs.isEmpty) {
+      // Have to have at least one root set.
+      return noRootsSetResponse;
+    }
+
+    // Default to use the known roots if none were specified.
+    rootConfigs ??= [
+      for (final root in allRoots) {ParameterNames.root: root.uri},
+    ];
+
+    final requestedUris = <Uri>{};
+    for (final rootConfig in rootConfigs) {
+      final validated = validateRootConfig(
+        rootConfig,
+        knownRoots: allRoots,
+        fileSystem: fileSystem,
+      );
+
+      if (validated.errorResult != null) {
+        return errorResult!;
+      }
+
+      final rootUri = Uri.parse(validated.root!.uri);
+
+      if (validated.paths != null && validated.paths!.isNotEmpty) {
+        for (final path in validated.paths!) {
+          requestedUris.add(rootUri.resolve(path));
+        }
+      } else {
+        requestedUris.add(rootUri);
+      }
+    }
+
+    final entries = diagnostics.entries.where((entry) {
+      final entryPath = entry.key.toFilePath();
+      return requestedUris.any((uri) {
+        final requestedPath = uri.toFilePath();
+        return fileSystem.path.equals(requestedPath, entryPath) ||
+            fileSystem.path.isWithin(requestedPath, entryPath);
+      });
+    });
 
     final messages = <Content>[];
-    for (var entry in diagnostics.entries) {
+    for (var entry in entries) {
       for (var diagnostic in entry.value) {
-        // Filter by severity level if specified
-        // DiagnosticSeverity: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint
         final diagnosticJson = diagnostic.toJson();
-        final severityValue = diagnosticJson['severity'] as int?;
-        if (severityValue != null && severityValue > maxSeverity) {
-          continue;
-        }
         diagnosticJson[ParameterNames.uri] = entry.key.toString();
-
-        // Convert coordinates from 0-based (LSP) to 1-based (user-friendly)
-        final range = diagnosticJson['range'] as Map<String, Object?>?;
-        if (range != null) {
-          final start = range['start'] as Map<String, Object?>?;
-          final end = range['end'] as Map<String, Object?>?;
-
-          if (start != null) {
-            start['line'] = (start['line'] as int) + 1;
-            start['character'] = (start['character'] as int) + 1;
-          }
-
-          if (end != null) {
-            end['line'] = (end['line'] as int) + 1;
-            end['character'] = (end['character'] as int) + 1;
-          }
-        }
-
         messages.add(TextContent(text: jsonEncode(diagnosticJson)));
       }
     }
@@ -310,7 +320,7 @@ base mixin DartAnalyzerSupport
     if (errorResult != null) return errorResult;
 
     final query = request.arguments![ParameterNames.query] as String;
-    final result = await _lspConnection.sendRequest(
+    final result = await _lspConnection!.sendRequest(
       lsp.Method.workspace_symbol.toString(),
       lsp.WorkspaceSymbolParams(query: query).toJson(),
     );
@@ -328,7 +338,7 @@ base mixin DartAnalyzerSupport
       line: request.arguments![ParameterNames.line] as int,
       character: request.arguments![ParameterNames.column] as int,
     );
-    final result = await _lspConnection.sendRequest(
+    final result = await _lspConnection!.sendRequest(
       lsp.Method.textDocument_signatureHelp.toString(),
       lsp.SignatureHelpParams(
         textDocument: lsp.TextDocumentIdentifier(uri: uri),
@@ -349,87 +359,9 @@ base mixin DartAnalyzerSupport
       line: request.arguments![ParameterNames.line] as int,
       character: request.arguments![ParameterNames.column] as int,
     );
-    final result = await _lspConnection.sendRequest(
+    final result = await _lspConnection!.sendRequest(
       lsp.Method.textDocument_hover.toString(),
       lsp.HoverParams(
-        textDocument: lsp.TextDocumentIdentifier(uri: uri),
-        position: position,
-      ).toJson(),
-    );
-    return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
-  }
-
-  /// Implementation of the [codeActionTool], get available code actions
-  /// (quick fixes, refactoring, etc.) for a given range in a file.
-  Future<CallToolResult> _codeAction(CallToolRequest request) async {
-    final errorResult = await _ensurePrerequisites(request);
-    if (errorResult != null) return errorResult;
-
-    final uri = Uri.parse(request.arguments![ParameterNames.uri] as String);
-    final startLine = request.arguments![ParameterNames.startLine] as int;
-    final startColumn = request.arguments![ParameterNames.startColumn] as int;
-    final endLine = request.arguments![ParameterNames.endLine] as int;
-    final endColumn = request.arguments![ParameterNames.endColumn] as int;
-
-    // First, ensure the document is opened in the LSP server
-    try {
-      final fileContents = await File.fromUri(uri).readAsString();
-      _lspConnection.sendNotification(
-        lsp.Method.textDocument_didOpen.toString(),
-        lsp.DidOpenTextDocumentParams(
-          textDocument: lsp.TextDocumentItem(
-            uri: uri,
-            languageId: 'dart',
-            version: 1,
-            text: fileContents,
-          ),
-        ).toJson(),
-      );
-
-      // Give the server a moment to process the document
-      await Future.delayed(Duration(milliseconds: 100));
-    } catch (e) {
-      log(LoggingLevel.warning, 'Failed to open document in LSP server: $e');
-    }
-
-    final range = lsp.Range(
-      start: lsp.Position(line: startLine, character: startColumn),
-      end: lsp.Position(line: endLine, character: endColumn),
-    );
-
-    final result = await _lspConnection.sendRequest(
-      lsp.Method.textDocument_codeAction.toString(),
-      lsp.CodeActionParams(
-        textDocument: lsp.TextDocumentIdentifier(uri: uri),
-        range: range,
-        context: lsp.CodeActionContext(
-          diagnostics: diagnostics[uri] ?? [],
-          only: [
-            lsp.CodeActionKind.QuickFix,
-            lsp.CodeActionKind.Refactor,
-            lsp.CodeActionKind.Source,
-            lsp.CodeActionKind.SourceOrganizeImports,
-          ],
-        ),
-      ).toJson(),
-    );
-    return CallToolResult(content: [TextContent(text: jsonEncode(result))]);
-  }
-
-  /// Implementation of the [definitionTool], go to the definition of a symbol
-  /// at a given position in a file.
-  Future<CallToolResult> _definition(CallToolRequest request) async {
-    final errorResult = await _ensurePrerequisites(request);
-    if (errorResult != null) return errorResult;
-
-    final uri = Uri.parse(request.arguments![ParameterNames.uri] as String);
-    final position = lsp.Position(
-      line: request.arguments![ParameterNames.line] as int,
-      character: request.arguments![ParameterNames.column] as int,
-    );
-    final result = await _lspConnection.sendRequest(
-      lsp.Method.textDocument_definition.toString(),
-      lsp.DefinitionParams(
         textDocument: lsp.TextDocumentIdentifier(uri: uri),
         position: position,
       ).toJson(),
@@ -473,19 +405,10 @@ base mixin DartAnalyzerSupport
     diagnostics[diagnosticParams.uri] = diagnosticParams.diagnostics;
     log(LoggingLevel.debug, {
       ParameterNames.uri: diagnosticParams.uri,
-      'diagnostics':
-          diagnosticParams.diagnostics.map((d) => d.toJson()).toList(),
+      'diagnostics': diagnosticParams.diagnostics
+          .map((d) => d.toJson())
+          .toList(),
     });
-  }
-
-  /// Handles `client/registerCapability` requests from the server.
-  /// The server uses this to dynamically register capabilities like code actions.
-  void _handleRegisterCapability(Parameters params) {
-    log(
-      LoggingLevel.debug,
-      'Received capability registration: ${params.asMap}',
-    );
-    // Simply acknowledge the registration - we support all the capabilities the server wants to register
   }
 
   /// Update the LSP workspace dirs when our workspace [Root]s change.
@@ -496,16 +419,18 @@ base mixin DartAnalyzerSupport
       final newRoots = await roots;
 
       final oldWorkspaceFolders = _currentWorkspaceFolders;
-      final newWorkspaceFolders =
-          _currentWorkspaceFolders = HashSet<lsp.WorkspaceFolder>(
+      final newWorkspaceFolders = _currentWorkspaceFolders =
+          HashSet<lsp.WorkspaceFolder>(
             equals: (a, b) => a.uri == b.uri,
             hashCode: (a) => a.uri.hashCode,
           )..addAll(newRoots.map((r) => r.asWorkspaceFolder));
 
-      final added =
-          newWorkspaceFolders.difference(oldWorkspaceFolders).toList();
-      final removed =
-          oldWorkspaceFolders.difference(newWorkspaceFolders).toList();
+      final added = newWorkspaceFolders
+          .difference(oldWorkspaceFolders)
+          .toList();
+      final removed = oldWorkspaceFolders
+          .difference(newWorkspaceFolders)
+          .toList();
 
       // This can happen in the case of multiple notifications in quick
       // succession, the `roots` future will complete only after the state has
@@ -524,7 +449,7 @@ base mixin DartAnalyzerSupport
         () => 'Notifying of workspace root change: ${event.toJson()}',
       );
 
-      _lspConnection.sendNotification(
+      _lspConnection!.sendNotification(
         lsp.Method.workspace_didChangeWorkspaceFolders.toString(),
         lsp.DidChangeWorkspaceFoldersParams(event: event).toJson(),
       );
@@ -534,17 +459,9 @@ base mixin DartAnalyzerSupport
   @visibleForTesting
   static final analyzeFilesTool = Tool(
     name: 'analyze_files',
-    description:
-        'Analyzes the entire project for errors. Returns diagnostic information with 1-based line and column coordinates.',
+    description: 'Analyzes specific paths, or the entire project, for errors.',
     inputSchema: Schema.object(
-      properties: {
-        ParameterNames.maxSeverity: Schema.int(
-          description:
-              'Maximum severity level to include in results. '
-              '1 = Error, 2 = Warning, 3 = Information, 4 = Hint. '
-              'Defaults to 1 (Error only).',
-        ),
-      },
+      properties: {ParameterNames.roots: rootsSchema(supportsPaths: true)},
     ),
     annotations: ToolAnnotations(title: 'Analyze projects', readOnlyHint: true),
   );
@@ -599,31 +516,6 @@ base mixin DartAnalyzerSupport
   );
 
   @visibleForTesting
-  static final codeActionTool = Tool(
-    name: 'code_action',
-    description:
-        'Get available code actions (quick fixes, refactoring, etc.) for a '
-        'given range in a file. This includes suggestions to fix diagnostics, '
-        'refactor code, or generate code.',
-    inputSchema: _rangeSchema,
-    annotations: ToolAnnotations(title: 'Code actions', readOnlyHint: true),
-  );
-
-  @visibleForTesting
-  static final definitionTool = Tool(
-    name: 'definition',
-    description:
-        'Get the definition location of a symbol at a given position in a file.'
-        'This returns the location(s) where the symbol is defined, which is '
-        'useful for understanding code structure and finding type definitions.',
-    inputSchema: _locationSchema,
-    annotations: ToolAnnotations(
-      title: 'Find definition location',
-      readOnlyHint: true,
-    ),
-  );
-
-  @visibleForTesting
   static final noRootsSetResponse = CallToolResult(
     isError: true,
     content: [
@@ -633,7 +525,7 @@ base mixin DartAnalyzerSupport
             'tool.',
       ),
     ],
-  );
+  )..failureReason = CallToolFailureReason.noRootsSet;
 }
 
 /// Common schema for tools that require a file URI, line, and column.
@@ -641,39 +533,13 @@ final _locationSchema = Schema.object(
   properties: {
     ParameterNames.uri: Schema.string(description: 'The URI of the file.'),
     ParameterNames.line: Schema.int(
-      description: 'The one-based line number of the cursor position.',
+      description: 'The zero-based line number of the cursor position.',
     ),
     ParameterNames.column: Schema.int(
-      description: 'The one-based column number of the cursor position.',
+      description: 'The zero-based column number of the cursor position.',
     ),
   },
   required: [ParameterNames.uri, ParameterNames.line, ParameterNames.column],
-);
-
-/// Common schema for tools that require a file URI and a range.
-final _rangeSchema = Schema.object(
-  properties: {
-    ParameterNames.uri: Schema.string(description: 'The URI of the file.'),
-    ParameterNames.startLine: Schema.int(
-      description: 'The one-based line number of the start of the range.',
-    ),
-    ParameterNames.startColumn: Schema.int(
-      description: 'The one-based column number of the start of the range.',
-    ),
-    ParameterNames.endLine: Schema.int(
-      description: 'The one-based line number of the end of the range.',
-    ),
-    ParameterNames.endColumn: Schema.int(
-      description: 'The one-based column number of the end of the range.',
-    ),
-  },
-  required: [
-    ParameterNames.uri,
-    ParameterNames.startLine,
-    ParameterNames.startColumn,
-    ParameterNames.endLine,
-    ParameterNames.endColumn,
-  ],
 );
 
 extension on Root {

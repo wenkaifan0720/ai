@@ -9,6 +9,7 @@ import 'package:dart_mcp/server.dart';
 import 'package:http/http.dart';
 import 'package:pool/pool.dart';
 
+import '../utils/analytics.dart';
 import '../utils/json.dart';
 
 /// Limit the number of concurrent requests.
@@ -17,7 +18,7 @@ final _pool = Pool(10);
 /// The number of results to return for a query.
 // If this should be set higher than 10 we need to implement paging of the
 // http://pub.dev/api/search endpoint.
-final _resultsLimit = 5;
+final _resultsLimit = 10;
 
 /// Mix this in to any MCPServer to add support for doing searches on pub.dev.
 base mixin PubDevSupport on ToolsSupport {
@@ -36,18 +37,16 @@ base mixin PubDevSupport on ToolsSupport {
       return CallToolResult(
         content: [TextContent(text: 'Missing required argument `query`.')],
         isError: true,
-      );
+      )..failureReason = CallToolFailureReason.argumentError;
     }
     final searchUrl = Uri.https('pub.dev', 'api/search', {'q': query});
     final Object? result;
     try {
       result = jsonDecode(await _client.read(searchUrl));
 
-      final packageNames =
-          dig<List>(result, ['packages'])
-              .take(_resultsLimit)
-              .map((p) => dig<String>(p, ['package']))
-              .toList();
+      final packageNames = dig<List>(result, [
+        'packages',
+      ]).take(_resultsLimit).map((p) => dig<String>(p, ['package'])).toList();
 
       if (packageNames.isEmpty) {
         return CallToolResult(
@@ -56,7 +55,6 @@ base mixin PubDevSupport on ToolsSupport {
               text: 'No packages matched the query, consider simplifying it.',
             ),
           ],
-          isError: true,
         );
       }
 
@@ -71,18 +69,17 @@ base mixin PubDevSupport on ToolsSupport {
       }
 
       // Retrieve information about all the packages in parallel.
-      final subQueryFutures =
-          packageNames
-              .map(
-                (packageName) => (
-                  versionListing: retrieve('api/packages/$packageName'),
-                  score: retrieve('api/packages/$packageName/score'),
-                  docIndex: retrieve(
-                    'documentation/$packageName/latest/index.json',
-                  ),
-                ),
-              )
-              .toList();
+      final subQueryFutures = packageNames
+          .map(
+            (packageName) => (
+              versionListing: retrieve('api/packages/$packageName'),
+              score: retrieve('api/packages/$packageName/score'),
+              docIndex: retrieve(
+                'documentation/$packageName/latest/index.json',
+              ),
+            ),
+          )
+          .toList();
 
       // Aggregate the retrieved information about each package into a
       // TextContent.
@@ -97,11 +94,10 @@ base mixin PubDevSupport on ToolsSupport {
                       ?.cast<Map<String, Object?>>() ??
                   <Map<String, Object?>>[])
             if (!object.containsKey('enclosedBy'))
-              object['name'] as String:
-                  Uri.https(
-                    'pub.dev',
-                    'documentation/$packageName/latest/${object['href']}',
-                  ).toString(),
+              object['name'] as String: Uri.https(
+                'pub.dev',
+                'documentation/$packageName/latest/${object['href']}',
+              ).toString(),
         };
         results.add(
           TextContent(
@@ -119,20 +115,20 @@ base mixin PubDevSupport on ToolsSupport {
                     ])
                     case final description?)
                   'description': description,
-                // if (dig<String?>(versionListing, [
-                //       'latest',
-                //       'pubspec',
-                //       'homepage',
-                //     ])
-                //     case final homepage?)
-                //   'homepage': homepage,
-                // if (dig<String?>(versionListing, [
-                //       'latest',
-                //       'pubspec',
-                //       'repository',
-                //     ])
-                //     case final repository?)
-                //   'repository': repository,
+                if (dig<String?>(versionListing, [
+                      'latest',
+                      'pubspec',
+                      'homepage',
+                    ])
+                    case final homepage?)
+                  'homepage': homepage,
+                if (dig<String?>(versionListing, [
+                      'latest',
+                      'pubspec',
+                      'repository',
+                    ])
+                    case final repository?)
+                  'repository': repository,
                 if (dig<String?>(versionListing, [
                       'latest',
                       'pubspec',
@@ -141,29 +137,25 @@ base mixin PubDevSupport on ToolsSupport {
                     case final documentation?)
                   'documentation': documentation,
               },
-              //if (libraryDocs.isNotEmpty) ...{'libraries': libraryDocs},
+              if (libraryDocs.isNotEmpty) ...{'libraries': libraryDocs},
               if (scoreResult != null) ...{
                 'scores': {
                   'pubPoints': dig<int>(scoreResult, ['grantedPoints']),
-                  // 'maxPubPoints': dig<int>(scoreResult, ['maxPoints']),
+                  'maxPubPoints': dig<int>(scoreResult, ['maxPoints']),
                   'likes': dig<int>(scoreResult, ['likeCount']),
-                  // 'downloadCount': dig<int>(scoreResult, [
-                  //   'downloadCount30Days',
-                  // ]),
+                  'downloadCount': dig<int>(scoreResult, [
+                    'downloadCount30Days',
+                  ]),
                 },
-                'topics':
-                    dig<List>(
-                      scoreResult,
-                      ['tags'],
-                    ).where((t) => (t as String).startsWith('topic:')).toList(),
-                // 'licenses':
-                //     dig<List>(scoreResult, ['tags'])
-                //         .where((t) => (t as String).startsWith('license'))
-                //         .toList(),
-                // 'publisher':
-                //     dig<List>(scoreResult, ['tags'])
-                //         .where((t) => (t as String).startsWith('publisher:'))
-                //         .firstOrNull,
+                'topics': dig<List>(scoreResult, [
+                  'tags',
+                ]).where((t) => (t as String).startsWith('topic:')).toList(),
+                'licenses': dig<List>(scoreResult, [
+                  'tags',
+                ]).where((t) => (t as String).startsWith('license')).toList(),
+                'publisher': dig<List>(scoreResult, ['tags'])
+                    .where((t) => (t as String).startsWith('publisher:'))
+                    .firstOrNull,
               },
             }),
           ),

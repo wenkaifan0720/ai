@@ -80,7 +80,13 @@ extension type ReadResourceRequest.fromMap(Map<String, Object?> _value)
 
   /// The URI of the resource to read. The URI can use any protocol; it is
   /// up to the server how to interpret it.
-  String get uri => _value['uri'] as String;
+  String get uri {
+    final uri = _value['uri'] as String?;
+    if (uri == null) {
+      throw ArgumentError('Missing uri field in $ReadResourceRequest.');
+    }
+    return uri;
+  }
 }
 
 /// The server's response to a resources/read request from the client.
@@ -128,7 +134,13 @@ extension type SubscribeRequest.fromMap(Map<String, Object?> _value)
 
   /// The URI of the resource to subscribe to. The URI can use any protocol;
   /// it is up to the server how to interpret it.
-  String get uri => _value['uri'] as String;
+  String get uri {
+    final uri = _value['uri'] as String?;
+    if (uri == null) {
+      throw ArgumentError('Missing uri field in $SubscribeRequest.');
+    }
+    return uri;
+  }
 }
 
 /// Sent from the client to request cancellation of resources/updated
@@ -146,7 +158,13 @@ extension type UnsubscribeRequest.fromMap(Map<String, Object?> _value)
       UnsubscribeRequest.fromMap({'uri': uri, if (meta != null) '_meta': meta});
 
   /// The URI of the resource to unsubscribe from.
-  String get uri => _value['uri'] as String;
+  String get uri {
+    final uri = _value['uri'] as String?;
+    if (uri == null) {
+      throw ArgumentError('Missing uri field in $UnsubscribeRequest.');
+    }
+    return uri;
+  }
 }
 
 /// A notification from the server to the client, informing it that a resource
@@ -173,7 +191,7 @@ extension type ResourceUpdatedNotification.fromMap(Map<String, Object?> _value)
 
 /// A known resource that the server is capable of reading.
 extension type Resource.fromMap(Map<String, Object?> _value)
-    implements Annotated {
+    implements Annotated, BaseMetadata, WithMetadata {
   factory Resource({
     required String uri,
     required String name,
@@ -181,6 +199,7 @@ extension type Resource.fromMap(Map<String, Object?> _value)
     String? description,
     String? mimeType,
     int? size,
+    Meta? meta,
   }) => Resource.fromMap({
     'uri': uri,
     'name': name,
@@ -188,15 +207,11 @@ extension type Resource.fromMap(Map<String, Object?> _value)
     if (description != null) 'description': description,
     if (mimeType != null) 'mimeType': mimeType,
     if (size != null) 'size': size,
+    if (meta != null) '_meta': meta,
   });
 
   /// The URI of this resource.
   String get uri => _value['uri'] as String;
-
-  /// A human-readable name for this resource.
-  ///
-  /// This can be used by clients to populate UI elements.
-  String get name => _value['name'] as String;
 
   /// A description of what this resource represents.
   ///
@@ -217,29 +232,28 @@ extension type Resource.fromMap(Map<String, Object?> _value)
 
 /// A template description for resources available on the server.
 extension type ResourceTemplate.fromMap(Map<String, Object?> _value)
-    implements Annotated {
+    implements Annotated, BaseMetadata, WithMetadata {
   factory ResourceTemplate({
     required String uriTemplate,
     required String name,
-    Annotations? annotations,
+    String? title,
     String? description,
+    Annotations? annotations,
     String? mimeType,
+    Meta? meta,
   }) => ResourceTemplate.fromMap({
     'uriTemplate': uriTemplate,
     'name': name,
-    if (annotations != null) 'annotations': annotations,
+    if (title != null) 'title': title,
     if (description != null) 'description': description,
+    if (annotations != null) 'annotations': annotations,
     if (mimeType != null) 'mimeType': mimeType,
+    if (meta != null) '_meta': meta,
   });
 
   /// A URI template (according to RFC 6570) that can be used to construct
   /// resource URIs.
   String get uriTemplate => _value['uriTemplate'] as String;
-
-  /// A human-readable name for the type of resource this template refers to.
-  ///
-  /// This can be used by clients to populate UI elements.
-  String get name => _value['name'] as String;
 
   /// A description of what this template is for.
   ///
@@ -258,7 +272,8 @@ extension type ResourceTemplate.fromMap(Map<String, Object?> _value)
 ///
 /// Could be either [TextResourceContents] or [BlobResourceContents],
 /// use [isText] and [isBlob] before casting to the more specific type.
-extension type ResourceContents.fromMap(Map<String, Object?> _value) {
+extension type ResourceContents.fromMap(Map<String, Object?> _value)
+    implements WithMetadata {
   /// Whether or not this represents [TextResourceContents].
   bool get isText => _value.containsKey('text');
 
@@ -279,10 +294,12 @@ extension type TextResourceContents.fromMap(Map<String, Object?> _value)
     required String uri,
     required String text,
     String? mimeType,
+    Meta? meta,
   }) => TextResourceContents.fromMap({
     'uri': uri,
     'text': text,
     if (mimeType != null) 'mimeType': mimeType,
+    if (meta != null) '_meta': meta,
   });
 
   /// The text of the item.
@@ -299,10 +316,12 @@ extension type BlobResourceContents.fromMap(Map<String, Object?> _value)
     required String uri,
     required String blob,
     String? mimeType,
+    Meta? meta,
   }) => BlobResourceContents.fromMap({
     'uri': uri,
     'blob': blob,
     if (mimeType != null) 'mimeType': mimeType,
+    if (meta != null) '_meta': meta,
   });
 
   /// A base64-encoded string representing the binary data of the item.

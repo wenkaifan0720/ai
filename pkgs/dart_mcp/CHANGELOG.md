@@ -1,3 +1,62 @@
+## 0.3.3
+
+- Fix `PingRequest` handling when it is sent from a non-Dart client.
+- Deprecate `ElicitationAction.reject` and replace it with
+  `ElicitationAction.decline`.
+  - In the initial elicitations schema this was incorrectly listed as `reject`.
+  - This package still allows `reject` and treats it as an alias for`decline`.
+  - The old `reject` enum value was replaced with a static constant equal
+    exactly to `decline`, so switches are not affected.
+- Add `title` parameter to `Prompt` constructor.
+- Only execute sub-processes in a shell if they are `.bat` files.
+
+## 0.3.2
+
+- Deprecate the `EnumSchema` type in favor of the `StringSchema` with an
+  `enumValues` parameter. The `EnumSchema` type was not MCP spec compatible.
+  - Also deprecated the associated JsonType.enumeration which doesn't exist
+    in the JSON schema spec.
+
+## 0.3.1
+
+- Fixes communication problem when a `MCPServer` is instantiated without
+  instructions.
+- Fix the `content` argument to `PromptMessage` to be a single `Content` object.
+- Add new `package:dart_mcp/stdio.dart` library with a `stdioChannel` utility
+  for creating a stream channel that separates messages by newlines.
+- Added more examples.
+- Deprecated the `WithElicitationHandler` interface - the method this required
+  is now defined directly on the `ElicitationSupport` mixin which matches the
+  pattern used by other mixins in this package.
+- Change the `schema` parameter for elicitation requests to an `ObjectSchema` to
+  match the spec.
+- Deprecate the `Elicitations` server capability, this doesn't exist in the spec.
+
+## 0.3.0
+
+- Added error checking to required fields of all `Request` subclasses so that
+  they will throw helpful errors when accessed and not set.
+- Added enum support to Schema.
+- Add more detail to type validation errors.
+- Remove some duplicate validation errors, errors are only reported for the
+  leaf nodes and not all the way up the tree.
+  - Deprecated a few validation error types as a part of this, including
+    `propertyNamesInvalid`, `propertyValueInvalid`, `itemInvalid` and
+    `prefixItemInvalid`.
+- Added a `custom` validation error type.
+- **Breaking**: Auto-validate schemas for all tools by default. This can be
+  disabled by passing `validateArguments: false` to `registerTool`.
+- Updates to the latest MCP spec, [2025-06-08](https://modelcontextprotocol.io/specification/2025-06-18/changelog)
+  - Adds support for Elicitations to allow the server to ask the user questions.
+  - Adds `ResourceLink` as a tool return content type.
+  - Adds support for structured tool output.
+- **Breaking**: Change `MCPClient.connectStdioServer` signature to accept stdin
+  and stdout streams instead of starting processes itself. This enables custom
+  process spawning (such as using package:process), and also enables the client
+  to run in browser environments.
+- Fixed a problem where specifying `--log-file` would cause the server to stop
+  working.
+
 ## 0.2.2
 
 - Refactor `ClientImplementation` and `ServerImplementation` to the shared

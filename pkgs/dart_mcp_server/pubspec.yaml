@@ -2,11 +2,9 @@ name: dart_mcp_server
 description: >-
   An MCP server for Dart projects, exposing various developer tools to AI
   models.
-
 publish_to: none
-
 environment:
-  sdk: ^3.7.0
+  sdk: ^3.9.0-163.0.dev
 
 executables:
   dart_mcp_server: main
@@ -17,23 +15,27 @@ dependencies:
   ast_context:
     path: ../ast_context
   collection: ^1.19.1
-  dart_mcp: ^0.2.2
+  dart_mcp: ^0.3.3
   dds_service_extensions: ^2.0.1
-  devtools_shared: ^11.2.0
-  dtd: ^2.4.0
+  devtools_shared: ^12.0.0
+  dtd: ^4.0.0
   file: ^7.0.1
   http: ^1.3.0
-  json_rpc_2: ^3.0.3
+  json_rpc_2: ^4.0.0
   # TODO: Get this another way.
   language_server_protocol:
     git:
       url: https://github.com/dart-lang/sdk.git
       path: third_party/pkg/language_server_protocol
+      # When changing this, also update .github/workflows/dart_mcp_server.yaml
+      # to cache the correct directory.
+      ref: b0838eac58308fc4e6654ca99eda75b30649c08f
   meta: ^1.16.0
   path: ^1.9.1
   pool: ^1.5.1
   process: ^5.0.3
   stream_channel: ^2.1.4
+  unified_analytics: ^8.0.2
   vm_service: ^15.0.0
   watcher: ^1.1.1
   web_socket: ^1.0.1
@@ -45,7 +47,9 @@ dependencies:
       ref: 0a80d786456d953b165218f7eba7ab9d92a99014
 
 dev_dependencies:
+  analyzer: ^7.5.2
   dart_flutter_team_lints: ^3.2.1
+  pub_semver: ^2.2.0
   test: ^1.25.15
   test_descriptor: ^2.0.2
   test_process: ^2.1.1

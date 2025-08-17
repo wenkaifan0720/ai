@@ -1,4 +1,21 @@
-# Dart SDK 3.8.0 - WP
+# 0.1.1 (Dart SDK 3.10.0) - WIP
+
+* Change tools that accept multiple roots to not return immediately on the first
+  failure.
+* Add failure reason field to analytics events so we can know why tool calls are
+  failing.
+* Add a flutter_driver command for executing flutter driver commands on a device.
+* Allow for multiple package arguments to `pub add` and `pub remove`.
+* Require dart_mcp version 0.3.1.
+* Add support for the flutter_driver screenshot command.
+* Change the widget tree to the full version instead of the summary. The summary
+  tends to hide nested text widgets which makes it difficult to find widgets
+  based on their text values.
+* Add an `--exclude-tool` command line flag to exclude tools by name.
+* Add the abillity to limit the output of `analyze_files` to a set of paths.
+* Stop reporting non-zero exit codes from command line tools as tool errors.
+
+# 0.1.0 (Dart SDK 3.9.0)
 
 * Add documentation/homepage/repository links to pub results.
 * Handle relative paths under roots without trailing slashes.
@@ -41,3 +58,9 @@
 * Reduce output size of `run_tests` tool to save on input tokens.
 * Add `--log-file` argument to log all protocol traffic to a file.
 * Improve error text for failed DTD connections as well as the tool description.
+* Add support for injecting an `Analytics` instance to track usage.
+* Listen to the new DTD `ConnectedApp` service instead of the `Editor.DebugSessions`
+  service, when available.
+* Screenshot tool disabled until
+  https://github.com/flutter/flutter/issues/170357 is resolved.
+* Add `arg_parser.dart` public library with minimal deps to be used by the dart tool.

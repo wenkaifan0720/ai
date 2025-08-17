@@ -49,7 +49,13 @@ extension type GetPromptRequest.fromMap(Map<String, Object?> _value)
   });
 
   /// The name of the prompt or prompt template.
-  String get name => _value['name'] as String;
+  String get name {
+    final name = _value['name'] as String?;
+    if (name == null) {
+      throw ArgumentError('Missing name field in $GetPromptRequest.');
+    }
+    return name;
+  }
 
   /// Arguments to use for templating the prompt.
   Map<String, Object?>? get arguments =>
@@ -80,19 +86,19 @@ extension type GetPromptResult.fromMap(Map<String, Object?> _value)
 }
 
 /// A prompt or prompt template that the server offers.
-extension type Prompt.fromMap(Map<String, Object?> _value) {
+extension type Prompt.fromMap(Map<String, Object?> _value)
+    implements BaseMetadata {
   factory Prompt({
     required String name,
+    String? title,
     String? description,
     List<PromptArgument>? arguments,
   }) => Prompt.fromMap({
     'name': name,
+    if (title != null) 'title': title,
     if (description != null) 'description': description,
     if (arguments != null) 'arguments': arguments,
   });
-
-  /// The name of the prompt or prompt template.
-  String get name => _value['name'] as String;
 
   /// An optional description of what this prompt provides.
   String? get description => _value['description'] as String?;
@@ -102,19 +108,19 @@ extension type Prompt.fromMap(Map<String, Object?> _value) {
 }
 
 /// Describes an argument that a prompt can accept.
-extension type PromptArgument.fromMap(Map<String, Object?> _value) {
+extension type PromptArgument.fromMap(Map<String, Object?> _value)
+    implements BaseMetadata {
   factory PromptArgument({
     required String name,
+    String? title,
     String? description,
     bool? required,
   }) => PromptArgument.fromMap({
     'name': name,
+    if (title != null) 'title': title,
     if (description != null) 'description': description,
     if (required != null) 'required': required,
   });
-
-  /// The name of the argument.
-  String get name => _value['name'] as String;
 
   /// A human-readable description of the argument.
   String? get description => _value['description'] as String?;
@@ -131,7 +137,7 @@ enum Role { user, assistant }
 /// This is similar to `SamplingMessage`, but also supports the embedding of
 /// resources from the MCP server.
 extension type PromptMessage.fromMap(Map<String, Object?> _value) {
-  factory PromptMessage({required Role role, required List<Content> content}) =>
+  factory PromptMessage({required Role role, required Content content}) =>
       PromptMessage.fromMap({'role': role.name, 'content': content});
 
   /// The expected [Role] for this message in the prompt (multi-message

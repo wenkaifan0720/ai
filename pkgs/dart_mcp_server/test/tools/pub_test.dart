@@ -28,18 +28,17 @@ void main() {
     final executableName =
         '$appKind${Platform.isWindows
             ? appKind == 'dart'
-                ? '.exe'
-                : '.bat'
+                  ? '.exe'
+                  : '.bat'
             : ''}';
     group('$appKind app', () {
       // TODO: Use setUpAll, currently this fails due to an apparent TestProcess
       // issue.
       setUp(() async {
         fileSystem = MemoryFileSystem(
-          style:
-              Platform.isWindows
-                  ? FileSystemStyle.windows
-                  : FileSystemStyle.posix,
+          style: Platform.isWindows
+              ? FileSystemStyle.windows
+              : FileSystemStyle.posix,
         );
         fileSystem.file(p.join(fakeAppPath, 'pubspec.yaml'))
           ..createSync(recursive: true)
@@ -70,7 +69,7 @@ void main() {
             name: dartPubTool.name,
             arguments: {
               ParameterNames.command: 'add',
-              ParameterNames.packageName: 'foo',
+              ParameterNames.packageNames: ['foo', 'bar'],
               ParameterNames.roots: [
                 {ParameterNames.root: testRoot.uri},
               ],
@@ -82,7 +81,7 @@ void main() {
           expect(result.isError, isNot(true));
           expect(testProcessManager.commandsRan, [
             equalsCommand((
-              command: [endsWith(executableName), 'pub', 'add', 'foo'],
+              command: [endsWith(executableName), 'pub', 'add', 'foo', 'bar'],
               workingDirectory: testRoot.path,
             )),
           ]);
@@ -93,7 +92,7 @@ void main() {
             name: dartPubTool.name,
             arguments: {
               ParameterNames.command: 'remove',
-              ParameterNames.packageName: 'foo',
+              ParameterNames.packageNames: ['foo', 'bar'],
               ParameterNames.roots: [
                 {ParameterNames.root: testRoot.uri},
               ],
@@ -105,7 +104,13 @@ void main() {
           expect(result.isError, isNot(true));
           expect(testProcessManager.commandsRan, [
             equalsCommand((
-              command: [endsWith(executableName), 'pub', 'remove', 'foo'],
+              command: [
+                endsWith(executableName),
+                'pub',
+                'remove',
+                'foo',
+                'bar',
+              ],
               workingDirectory: testRoot.path,
             )),
           ]);
@@ -185,14 +190,14 @@ void main() {
         group('returns error', () {
           test('for missing command', () async {
             final request = CallToolRequest(name: dartPubTool.name);
-            final result = await testHarness.callToolWithRetry(
+            final result = await testHarness.callTool(
               request,
               expectError: true,
             );
 
             expect(
               (result.content.single as TextContent).text,
-              'Missing required argument `command`.',
+              'Required property "command" is missing at path #root',
             );
             expect(testProcessManager.commandsRan, isEmpty);
           });
@@ -202,7 +207,7 @@ void main() {
               name: dartPubTool.name,
               arguments: {ParameterNames.command: 'publish'},
             );
-            final result = await testHarness.callToolWithRetry(
+            final result = await testHarness.callTool(
               request,
               expectError: true,
             );
@@ -215,21 +220,21 @@ void main() {
           });
 
           for (final command in SupportedPubCommand.values.where(
-            (c) => c.requiresPackageName,
+            (c) => c.requiresPackageNames,
           )) {
             test('for missing package name: $command', () async {
               final request = CallToolRequest(
                 name: dartPubTool.name,
                 arguments: {ParameterNames.command: command.name},
               );
-              final result = await testHarness.callToolWithRetry(
+              final result = await testHarness.callTool(
                 request,
                 expectError: true,
               );
 
               expect(
                 (result.content.single as TextContent).text,
-                'Missing required argument `packageName` for the '
+                'Missing required argument `packageNames` for the '
                 '`${command.name}` command.',
               );
               expect(testProcessManager.commandsRan, isEmpty);

@@ -79,10 +79,15 @@ base class MCPBase {
   void registerRequestHandler<T extends Request?, R extends Result?>(
     String name,
     FutureOr<R> Function(T) impl,
-  ) => _peer.registerMethod(
-    name,
-    (Parameters p) => impl((p.value as Map?)?.cast<String, Object?>() as T),
-  );
+  ) => _peer.registerMethod(name, (Parameters p) {
+    if (p.value != null && p.value is! Map) {
+      throw ArgumentError(
+        'Request to $name must be a Map or null. Instead, got '
+        '${p.value.runtimeType}',
+      );
+    }
+    return impl((p.value as Map?)?.cast<String, Object?>() as T);
+  });
 
   /// Registers a notification handler named [name] on this server.
   void registerNotificationHandler<T extends Notification?>(
@@ -126,8 +131,6 @@ base class MCPBase {
 
   /// The peer may ping us at any time, and we should respond with an empty
   /// response.
-  ///
-  /// Note that [PingRequest] is always actually just `null`.
   EmptyResult _handlePing([PingRequest? _]) => EmptyResult();
 
   /// Handles [ProgressNotification]s and forwards them to the streams returned
@@ -167,11 +170,13 @@ base class MCPBase {
   ///
   /// If the timeout is reached, future values or errors from the ping request
   /// are ignored.
-  Future<bool> ping({Duration timeout = const Duration(seconds: 1)}) =>
-      sendRequest<EmptyResult>(
-        PingRequest.methodName,
-        null,
-      ).then((_) => true).timeout(timeout, onTimeout: () => false);
+  Future<bool> ping({
+    Duration timeout = const Duration(seconds: 1),
+    PingRequest? request,
+  }) => sendRequest<EmptyResult>(
+    PingRequest.methodName,
+    request,
+  ).then((_) => true).timeout(timeout, onTimeout: () => false);
 
   /// If [protocolLogSink] is non-null, emits messages to it for all messages
   /// sent over [channel].

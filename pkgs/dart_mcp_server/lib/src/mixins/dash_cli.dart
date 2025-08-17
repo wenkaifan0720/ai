@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:dart_mcp/server.dart';
 import 'package:path/path.dart' as p;
 
+import '../utils/analytics.dart';
 import '../utils/cli_utils.dart';
 import '../utils/constants.dart';
 import '../utils/file_system.dart';
@@ -96,7 +97,7 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
     if (projectType != 'dart' && projectType != 'flutter') {
       errors.add(
         ValidationError(
-          ValidationErrorType.itemInvalid,
+          ValidationErrorType.custom,
           path: [ParameterNames.projectType],
           details: 'Only `dart` and `flutter` are allowed values.',
         ),
@@ -106,7 +107,7 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
     if (p.isAbsolute(directory)) {
       errors.add(
         ValidationError(
-          ValidationErrorType.itemInvalid,
+          ValidationErrorType.custom,
           path: [ParameterNames.directory],
           details: 'Directory must be a relative path.',
         ),
@@ -119,13 +120,12 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
       // Platforms are ignored for Dart, so no need to validate them.
       final invalidPlatforms = platforms.difference(_allowedFlutterPlatforms);
       if (invalidPlatforms.isNotEmpty) {
-        final plural =
-            invalidPlatforms.length > 1
-                ? 'are not valid platforms'
-                : 'is not a valid platform';
+        final plural = invalidPlatforms.length > 1
+            ? 'are not valid platforms'
+            : 'is not a valid platform';
         errors.add(
           ValidationError(
-            ValidationErrorType.itemInvalid,
+            ValidationErrorType.custom,
             path: [ParameterNames.platform],
             details:
                 '${invalidPlatforms.join(',')} $plural. Platforms '
@@ -142,7 +142,7 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
           for (final error in errors) Content.text(text: error.toErrorString()),
         ],
         isError: true,
-      );
+      )..failureReason = CallToolFailureReason.argumentError;
     }
 
     final template = args[ParameterNames.template] as String?;
@@ -163,14 +163,13 @@ base mixin DashCliSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
     return runCommandInRoot(
       request,
       arguments: commandArgs,
-      commandForRoot:
-          (_, _, sdk) =>
-              switch (projectType) {
-                    'dart' => sdk.dartExecutablePath,
-                    'flutter' => sdk.flutterExecutablePath,
-                    _ => StateError('Unknown project type: $projectType'),
-                  }
-                  as String,
+      commandForRoot: (_, _, sdk) =>
+          switch (projectType) {
+                'dart' => sdk.dartExecutablePath,
+                'flutter' => sdk.flutterExecutablePath,
+                _ => StateError('Unknown project type: $projectType'),
+              }
+              as String,
       commandDescription: '$projectType create',
       fileSystem: fileSystem,
       processManager: processManager,

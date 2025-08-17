@@ -10,15 +10,12 @@ import 'package:args/args.dart';
 import 'package:async/async.dart';
 import 'package:cli_util/cli_logging.dart';
 import 'package:dart_mcp/client.dart';
+import 'package:dart_mcp/stdio.dart';
 import 'package:google_generative_ai/google_generative_ai.dart' as gemini;
 
 /// The list of Gemini models that are accepted as a "--model" argument.
 /// Defaults to the first one in the list.
-const List<String> allowedGeminiModels = [
-  'gemini-2.5-pro-preview-03-25',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-preview-04-17',
-];
+const List<String> allowedGeminiModels = ['gemini-2.5-pro', 'gemini-2.5-flash'];
 
 void main(List<String> args) {
   final geminiApiKey = Platform.environment['GEMINI_API_KEY'];
@@ -160,8 +157,6 @@ final class WorkflowClient extends MCPClient with RootsSupport {
       StreamSinkTransformer.fromHandlers(
         handleData: (String data, EventSink<List<int>> innerSink) {
           innerSink.add(utf8.encode(data));
-          // It's a log, so we want to make sure it's always up-to-date.
-          fileByteSink.flush();
         },
         handleError: (
           Object error,
@@ -409,12 +404,15 @@ final class WorkflowClient extends MCPClient with RootsSupport {
     for (var server in serverCommands) {
       final parts = server.split(' ');
       try {
+        final process = await Process.start(
+          parts.first,
+          parts.skip(1).toList(),
+        );
         serverConnections.add(
-          await connectStdioServer(
-            parts.first,
-            parts.skip(1).toList(),
+          connectServer(
+            stdioChannel(input: process.stdout, output: process.stdin),
             protocolLogSink: logSink,
-          ),
+          )..done.then((_) => process.kill()),
         );
       } catch (e) {
         logger.stderr('Failed to connect to server $server: $e');
@@ -514,9 +512,19 @@ final class WorkflowClient extends MCPClient with RootsSupport {
           properties: properties ?? {},
           nullable: nullable,
         );
-      case JsonType.string:
+      case JsonType.string
+          when (inputSchema as StringSchema).enumValues == null:
         return gemini.Schema.string(
           description: inputSchema.description,
+          nullable: nullable,
+        );
+      case JsonType.string
+          when (inputSchema as StringSchema).enumValues != null:
+      case JsonType.enumeration: // ignore: deprecated_member_use
+        final schema = inputSchema as StringSchema;
+        return gemini.Schema.enumString(
+          enumValues: schema.enumValues!.toList(),
+          description: description,
           nullable: nullable,
         );
       case JsonType.list:

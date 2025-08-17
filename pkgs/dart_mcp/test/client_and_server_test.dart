@@ -127,6 +127,21 @@ void main() {
     );
   });
 
+  // Regression test for https://github.com/dart-lang/ai/issues/238.
+  test('client and server can handle ping with non-null parameters', () async {
+    final environment = TestEnvironment(TestMCPClient(), TestMCPServer.new);
+    await environment.initializeServer();
+
+    await expectLater(
+      environment.serverConnection.ping(request: PingRequest()),
+      completes,
+    );
+    await expectLater(
+      environment.server.ping(request: PingRequest()),
+      completes,
+    );
+  });
+
   test(
     'server can handle initialized notification with null parameters',
     () async {
@@ -261,6 +276,19 @@ void main() {
   });
 
   group('version negotiation', () {
+    test('client and server respect negotiated protocol version', () async {
+      final environment = TestEnvironment(TestMCPClient(), TestMCPServer.new);
+      final serverConnection = environment.serverConnection;
+      final initializeResult = await serverConnection.initialize(
+        InitializeRequest(
+          protocolVersion: ProtocolVersion.oldestSupported,
+          capabilities: environment.client.capabilities,
+          clientInfo: environment.client.implementation,
+        ),
+      );
+      expect(initializeResult.protocolVersion, ProtocolVersion.oldestSupported);
+      expect(serverConnection.protocolVersion, ProtocolVersion.oldestSupported);
+    });
     test('server can downgrade the version', () async {
       final environment = TestEnvironment(
         TestMCPClient(),

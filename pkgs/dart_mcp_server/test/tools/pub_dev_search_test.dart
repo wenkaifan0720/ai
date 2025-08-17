@@ -129,11 +129,7 @@ void main() {
           arguments: {'query': 'retry'},
         );
 
-        final result = await testHarness.callToolWithRetry(
-          request,
-          maxTries: 1,
-          expectError: true,
-        );
+        final result = await testHarness.callTool(request, expectError: true);
         expect(result.isError, isTrue);
         expect(
           (result.content[0] as TextContent).text,
@@ -152,11 +148,7 @@ void main() {
             arguments: {'query': 'retry'},
           );
 
-          final result = await testHarness.callToolWithRetry(
-            request,
-            maxTries: 1,
-            expectError: true,
-          );
+          final result = await testHarness.callTool(request);
           expect(result.content.length, 1);
           expect(json.decode((result.content[0] as TextContent).text), {
             'packageName': 'retry',
@@ -175,7 +167,7 @@ void main() {
     );
   });
 
-  test('No matching packages gets reported as an error', () async {
+  test('No matching packages gets special handling', () async {
     await runWithClient(
       () async {
         await runWithHarness((testHarness, pubDevSearchTool) async {
@@ -187,9 +179,8 @@ void main() {
           final result = await testHarness.callToolWithRetry(
             request,
             maxTries: 1,
-            expectError: true,
           );
-          expect(result.isError, isTrue);
+          expect(result.isError, isNot(true));
           expect(
             (result.content[0] as TextContent).text,
             contains('No packages matched the query, consider simplifying it'),
@@ -213,10 +204,8 @@ class _FixedResponseClient implements Client {
   _FixedResponseClient(this.handler);
 
   _FixedResponseClient.withMappedResponses(Map<String, String> responses)
-    : handler =
-          ((url) =>
-              responses[url.toString()] ??
-              (throw ClientException('No internet')));
+    : handler = ((url) =>
+          responses[url.toString()] ?? (throw ClientException('No internet')));
 
   @override
   Future<String> read(Uri url, {Map<String, String>? headers}) async {

@@ -15,7 +15,7 @@ extension ParameterNames on Never {
   static const line = 'line';
   static const maxSeverity = 'maxSeverity';
   static const name = 'name';
-  static const packageName = 'packageName';
+  static const packageNames = 'packageNames';
   static const paths = 'paths';
   static const platform = 'platform';
   static const position = 'position';
@@ -29,6 +29,7 @@ extension ParameterNames on Never {
   static const testRunnerArgs = 'testRunnerArgs';
   static const uri = 'uri';
   static const uris = 'uris';
+  static const userJourney = 'user_journey';
 }
 
 /// A shared success response for tools.

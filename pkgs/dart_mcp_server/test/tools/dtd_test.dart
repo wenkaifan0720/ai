@@ -9,8 +9,13 @@ import 'dart:io';
 import 'package:async/async.dart';
 import 'package:dart_mcp/server.dart';
 import 'package:dart_mcp_server/src/mixins/dtd.dart';
+import 'package:dart_mcp_server/src/server.dart';
+import 'package:dart_mcp_server/src/utils/analytics.dart';
 import 'package:dart_mcp_server/src/utils/constants.dart';
+import 'package:devtools_shared/devtools_shared.dart';
 import 'package:test/test.dart';
+import 'package:unified_analytics/testing.dart';
+import 'package:unified_analytics/unified_analytics.dart' as ua;
 import 'package:vm_service/vm_service.dart';
 
 import '../test_harness.dart';
@@ -28,27 +33,6 @@ void main() {
       });
 
       group('flutter tests', () {
-        test('can take a screenshot', () async {
-          await testHarness.startDebugSession(
-            counterAppPath,
-            'lib/main.dart',
-            isFlutter: true,
-          );
-          final tools =
-              (await testHarness.mcpServerConnection.listTools()).tools;
-          final screenshotTool = tools.singleWhere(
-            (t) => t.name == DartToolingDaemonSupport.screenshotTool.name,
-          );
-          final screenshotResult = await testHarness.callToolWithRetry(
-            CallToolRequest(name: screenshotTool.name),
-          );
-          expect(screenshotResult.content.single, {
-            'data': anything,
-            'mimeType': 'image/png',
-            'type': ImageContent.expectedType,
-          });
-        });
-
         test('can get the widget tree', () async {
           await testHarness.startDebugSession(
             counterAppPath,
@@ -148,6 +132,8 @@ void main() {
     });
 
     group('[in process]', () {
+      late ua.FakeAnalytics analytics;
+      late DartMCPServer server;
       setUp(() async {
         DartToolingDaemonSupport.debugAwaitVmServiceDisposal = true;
         addTearDown(
@@ -155,6 +141,8 @@ void main() {
         );
 
         testHarness = await TestHarness.start(inProcess: true);
+        server = testHarness.serverConnectionPair.server!;
+        analytics = server.analytics! as ua.FakeAnalytics;
         await testHarness.connectToDtd();
       });
 
@@ -209,7 +197,14 @@ void main() {
             isFlutter: false,
           );
           await pumpEventQueue();
-          expect(server.activeVmServices.length, 1);
+          await runWithRetry(
+            callback: () => expect(server.activeVmServices.length, 1),
+            maxRetries: 5,
+          );
+
+          // TODO: It can cause an error in the mcp server if we haven't set
+          // up the listeners yet.
+          await Future<void>.delayed(const Duration(seconds: 1));
 
           await testHarness.stopDebugSession(debugSession);
           await pumpEventQueue();
@@ -217,11 +212,48 @@ void main() {
         });
       });
 
+      test('can take a screenshot', () async {
+        await testHarness.startDebugSession(
+          counterAppPath,
+          'lib/main.dart',
+          isFlutter: true,
+        );
+        final tools = (await testHarness.mcpServerConnection.listTools()).tools;
+        final screenshotTool = tools.singleWhere(
+          (t) => t.name == DartToolingDaemonSupport.screenshotTool.name,
+        );
+        final screenshotResult = await testHarness.callToolWithRetry(
+          CallToolRequest(name: screenshotTool.name),
+        );
+        expect(screenshotResult.content.single, {
+          'data': anything,
+          'mimeType': 'image/png',
+          'type': ImageContent.expectedType,
+        });
+      });
+
+      test('can take a screenshot using flutter_driver', () async {
+        await testHarness.startDebugSession(
+          counterAppPath,
+          'lib/driver_main.dart',
+          isFlutter: true,
+        );
+        final screenshotResult = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: DartToolingDaemonSupport.flutterDriverTool.name,
+            arguments: {'command': 'screenshot'},
+          ),
+        );
+        expect(screenshotResult.content.single, {
+          'data': anything,
+          'mimeType': 'image/png',
+          'type': ImageContent.expectedType,
+        });
+      });
+
       group('get selected widget', () {
         test('when a selected widget exists', () async {
           final server = testHarness.serverConnectionPair.server!;
-          final tools =
-              (await testHarness.mcpServerConnection.listTools()).tools;
 
           await testHarness.startDebugSession(
             counterAppPath,
@@ -230,11 +262,11 @@ void main() {
           );
           await server.updateActiveVmServices();
 
-          final getWidgetTreeTool = tools.singleWhere(
-            (t) => t.name == DartToolingDaemonSupport.getWidgetTreeTool.name,
-          );
           final getWidgetTreeResult = await testHarness.callToolWithRetry(
-            CallToolRequest(name: getWidgetTreeTool.name),
+            CallToolRequest(
+              name: DartToolingDaemonSupport.getWidgetTreeTool.name,
+              arguments: {'summaryOnly': true},
+            ),
           );
 
           // Select the first child of the [root] widget.
@@ -258,12 +290,10 @@ void main() {
           );
 
           // Confirm we can get the selected widget from the MCP tool.
-          final getSelectedWidgetTool = tools.singleWhere(
-            (t) =>
-                t.name == DartToolingDaemonSupport.getSelectedWidgetTool.name,
-          );
-          final getSelectedWidgetResult = await testHarness.callToolWithRetry(
-            CallToolRequest(name: getSelectedWidgetTool.name),
+          final getSelectedWidgetResult = await testHarness.callTool(
+            CallToolRequest(
+              name: DartToolingDaemonSupport.getSelectedWidgetTool.name,
+            ),
           );
           expect(getSelectedWidgetResult.isError, isNot(true));
           expect(
@@ -278,14 +308,10 @@ void main() {
             'lib/main.dart',
             isFlutter: true,
           );
-          final tools =
-              (await testHarness.mcpServerConnection.listTools()).tools;
-          final getSelectedWidgetTool = tools.singleWhere(
-            (t) =>
-                t.name == DartToolingDaemonSupport.getSelectedWidgetTool.name,
-          );
           final getSelectedWidgetResult = await testHarness.callToolWithRetry(
-            CallToolRequest(name: getSelectedWidgetTool.name),
+            CallToolRequest(
+              name: DartToolingDaemonSupport.getSelectedWidgetTool.name,
+            ),
           );
 
           expect(getSelectedWidgetResult.isError, isNot(true));
@@ -405,16 +431,14 @@ void main() {
 
             final stdin = debugSession.appProcess.stdin;
             stdin.writeln('');
-            var resources =
-                (await serverConnection.listResources(
-                  ListResourcesRequest(),
-                )).resources;
+            var resources = (await serverConnection.listResources(
+              ListResourcesRequest(),
+            )).resources;
             if (resources.runtimeErrors.isEmpty) {
               await onResourceListChanged;
-              resources =
-                  (await serverConnection.listResources(
-                    ListResourcesRequest(),
-                  )).resources;
+              resources = (await serverConnection.listResources(
+                ListResourcesRequest(),
+              )).resources;
             }
             final resource = resources.runtimeErrors.single;
 
@@ -424,10 +448,9 @@ void main() {
             await serverConnection.subscribeResource(
               SubscribeRequest(uri: resource.uri),
             );
-            var originalContents =
-                (await serverConnection.readResource(
-                  ReadResourceRequest(uri: resource.uri),
-                )).contents;
+            var originalContents = (await serverConnection.readResource(
+              ReadResourceRequest(uri: resource.uri),
+            )).contents;
             final errorMatcher = isA<TextResourceContents>().having(
               (c) => c.text,
               'text',
@@ -437,10 +460,9 @@ void main() {
             // re-read the resource.
             if (originalContents.isEmpty) {
               await resourceUpdatedQueue.next;
-              originalContents =
-                  (await serverConnection.readResource(
-                    ReadResourceRequest(uri: resource.uri),
-                  )).contents;
+              originalContents = (await serverConnection.readResource(
+                ReadResourceRequest(uri: resource.uri),
+              )).contents;
             }
             expect(
               originalContents.length,
@@ -460,10 +482,9 @@ void main() {
             );
 
             // Should now have another error.
-            final newContents =
-                (await serverConnection.readResource(
-                  ReadResourceRequest(uri: resource.uri),
-                )).contents;
+            final newContents = (await serverConnection.readResource(
+              ReadResourceRequest(uri: resource.uri),
+            )).contents;
             expect(newContents.length, 2);
             expect(newContents.last, errorMatcher);
 
@@ -475,11 +496,35 @@ void main() {
               ),
             );
 
-            final finalContents =
-                (await serverConnection.readResource(
-                  ReadResourceRequest(uri: resource.uri),
-                )).contents;
+            final finalContents = (await serverConnection.readResource(
+              ReadResourceRequest(uri: resource.uri),
+            )).contents;
             expect(finalContents, isEmpty);
+
+            expect(
+              analytics.sentEvents,
+              contains(
+                isA<ua.Event>()
+                    .having(
+                      (e) => e.eventName,
+                      'eventName',
+                      DashEvent.dartMCPEvent,
+                    )
+                    .having(
+                      (e) => e.eventData,
+                      'eventData',
+                      equals({
+                        'client': server.clientInfo.name,
+                        'clientVersion': server.clientInfo.version,
+                        'serverVersion': server.implementation.version,
+                        'type': 'readResource',
+                        'kind': ResourceKind.runtimeErrors.name,
+                        'length': isA<int>(),
+                        'elapsedMilliseconds': isA<int>(),
+                      }),
+                    ),
+              ),
+            );
           },
           onPlatform: {
             'windows': const Skip('https://github.com/dart-lang/ai/issues/151'),
@@ -567,18 +612,82 @@ void main() {
         ]);
 
         // Test missing 'enabled' argument
-        final missingArgResult = await testHarness.callToolWithRetry(
+        final missingArgResult = await testHarness.callTool(
           CallToolRequest(name: setSelectionModeTool.name),
           expectError: true,
         );
         expect(missingArgResult.isError, isTrue);
         expect(
           (missingArgResult.content.first as TextContent).text,
-          'Required parameter "enabled" was not provided or is not a boolean.',
+          'Required property "enabled" is missing at path #root',
         );
 
         // Clean up
         await testHarness.stopDebugSession(debugSession);
+      });
+
+      group('Flutter driver', () {
+        test('can get text and tap buttons', () async {
+          final debugSession = await testHarness.startDebugSession(
+            counterAppPath,
+            'lib/driver_main.dart',
+            isFlutter: true,
+          );
+          var result = await testHarness.callToolWithRetry(
+            CallToolRequest(
+              name: DartToolingDaemonSupport.flutterDriverTool.name,
+              arguments: {
+                'command': 'get_text',
+                'finderType': 'ByValueKey',
+                'keyValueString': 'counter',
+                'keyValueType': 'String',
+              },
+            ),
+          );
+          expect(
+            result.content.first,
+            isA<TextContent>().having(
+              (c) => c.text,
+              'text',
+              contains('"text":"0"'),
+            ),
+          );
+
+          result = await testHarness.callToolWithRetry(
+            CallToolRequest(
+              name: DartToolingDaemonSupport.flutterDriverTool.name,
+              arguments: {
+                'command': 'tap',
+                'finderType': 'ByTooltipMessage',
+                'text': 'Increment',
+              },
+            ),
+          );
+          expect(result.isError, isNot(true));
+
+          result = await testHarness.callToolWithRetry(
+            CallToolRequest(
+              name: DartToolingDaemonSupport.flutterDriverTool.name,
+              arguments: {
+                'command': 'get_text',
+                'finderType': 'ByValueKey',
+                'keyValueString': 'counter',
+                'keyValueType': 'String',
+              },
+            ),
+          );
+          expect(
+            result.content.first,
+            isA<TextContent>().having(
+              (c) => c.text,
+              'text',
+              contains('"text":"1"'),
+            ),
+          );
+
+          // Clean up
+          await testHarness.stopDebugSession(debugSession);
+        });
       });
     });
   });

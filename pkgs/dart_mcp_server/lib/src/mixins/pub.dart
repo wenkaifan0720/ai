@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:dart_mcp/server.dart';
 
+import '../utils/analytics.dart';
 import '../utils/cli_utils.dart';
 import '../utils/constants.dart';
 import '../utils/file_system.dart';
@@ -34,13 +35,7 @@ base mixin PubSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
 
   /// Implementation of the [pubTool].
   Future<CallToolResult> _runDartPubTool(CallToolRequest request) async {
-    final command = request.arguments?[ParameterNames.command] as String?;
-    if (command == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `command`.')],
-        isError: true,
-      );
-    }
+    final command = request.arguments![ParameterNames.command] as String;
     final matchingCommand = SupportedPubCommand.fromName(command);
     if (matchingCommand == null) {
       return CallToolResult(
@@ -53,29 +48,28 @@ base mixin PubSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
           ),
         ],
         isError: true,
-      );
+      )..failureReason ??= CallToolFailureReason.noSuchCommand;
     }
 
-    final packageName =
-        request.arguments?[ParameterNames.packageName] as String?;
-    if (matchingCommand.requiresPackageName && packageName == null) {
+    final packageNames =
+        (request.arguments?[ParameterNames.packageNames] as List?)
+            ?.cast<String>();
+    if (matchingCommand.requiresPackageNames && packageNames == null) {
       return CallToolResult(
         content: [
           TextContent(
             text:
-                'Missing required argument `packageName` for the `$command` '
+                'Missing required argument `packageNames` for the `$command` '
                 'command.',
           ),
         ],
         isError: true,
-      );
+      )..failureReason ??= CallToolFailureReason.argumentError;
     }
 
     return runCommandInRoots(
       request,
-      // TODO(https://github.com/dart-lang/ai/issues/81): conditionally use
-      //  flutter when appropriate.
-      arguments: ['pub', command, if (packageName != null) packageName],
+      arguments: ['pub', command, if (packageNames != null) ...packageNames],
       commandDescription: 'dart|flutter pub $command',
       processManager: processManager,
       knownRoots: await roots,
@@ -97,11 +91,17 @@ base mixin PubSupport on ToolsSupport, LoggingSupport, RootsTrackingSupport
           description:
               'Currently only ${SupportedPubCommand.listAll} are supported.',
         ),
-        ParameterNames.packageName: Schema.string(
-          title: 'The package name to run the command for.',
+        ParameterNames.packageNames: Schema.list(
+          title: 'The package names to run the command for.',
           description:
               'This is required for the '
-              '${SupportedPubCommand.listAllThatRequirePackageName} commands.',
+              '${SupportedPubCommand.listAllThatRequirePackageName} commands. ',
+          items: Schema.string(
+            title: 'A package to run the command for.',
+            description:
+                'When used with "add", prefix with "dev:" to add the package '
+                'as a dev dependency.',
+          ),
         ),
         ParameterNames.roots: rootsSchema(),
       },
@@ -115,18 +115,18 @@ enum SupportedPubCommand {
   // This is supported in a simplified form: `dart pub add <package-name>`.
   // TODO(https://github.com/dart-lang/ai/issues/77): add support for adding
   //  dev dependencies.
-  add(requiresPackageName: true),
+  add(requiresPackageNames: true),
 
   get,
 
   // This is supported in a simplified form: `dart pub remove <package-name>`.
-  remove(requiresPackageName: true),
+  remove(requiresPackageNames: true),
 
   upgrade;
 
-  const SupportedPubCommand({this.requiresPackageName = false});
+  const SupportedPubCommand({this.requiresPackageNames = false});
 
-  final bool requiresPackageName;
+  final bool requiresPackageNames;
 
   static SupportedPubCommand? fromName(String name) {
     for (final command in SupportedPubCommand.values) {
@@ -143,7 +143,7 @@ enum SupportedPubCommand {
 
   static String get listAllThatRequirePackageName {
     return _writeCommandsAsList(
-      SupportedPubCommand.values.where((c) => c.requiresPackageName).toList(),
+      SupportedPubCommand.values.where((c) => c.requiresPackageNames).toList(),
     );
   }
 

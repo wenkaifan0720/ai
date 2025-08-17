@@ -28,12 +28,23 @@ extension type InitializeRequest._fromMap(Map<String, Object?> _value)
   ///
   /// May be `null` if the version is not recognized.
   ProtocolVersion? get protocolVersion =>
-      ProtocolVersion.tryParse(_value['protocolVersion'] as String);
+      ProtocolVersion.tryParse(_value['protocolVersion'] as String? ?? '');
 
-  ClientCapabilities get capabilities =>
-      _value['capabilities'] as ClientCapabilities;
+  ClientCapabilities get capabilities {
+    final capabilities = _value['capabilities'] as ClientCapabilities?;
+    if (capabilities == null) {
+      throw ArgumentError('Missing capabilities field in $InitializeRequest.');
+    }
+    return capabilities;
+  }
 
-  Implementation get clientInfo => _value['clientInfo'] as Implementation;
+  Implementation get clientInfo {
+    final clientInfo = _value['clientInfo'] as Implementation?;
+    if (clientInfo == null) {
+      throw ArgumentError('Missing clientInfo field in $InitializeRequest.');
+    }
+    return clientInfo;
+  }
 }
 
 /// After receiving an initialize request from the client, the server sends
@@ -49,7 +60,7 @@ extension type InitializeResult.fromMap(Map<String, Object?> _value)
     'protocolVersion': protocolVersion.versionString,
     'capabilities': serverCapabilities,
     'serverInfo': serverInfo,
-    'instructions': instructions,
+    if (instructions != null) 'instructions': instructions,
   });
 
   /// The version of the Model Context Protocol that the server wants to use.
@@ -102,10 +113,12 @@ extension type ClientCapabilities.fromMap(Map<String, Object?> _value) {
     Map<String, Object?>? experimental,
     RootsCapabilities? roots,
     Map<String, Object?>? sampling,
+    ElicitationCapability? elicitation,
   }) => ClientCapabilities.fromMap({
     if (experimental != null) 'experimental': experimental,
     if (roots != null) 'roots': roots,
     if (sampling != null) 'sampling': sampling,
+    if (elicitation != null) 'elicitation': elicitation,
   });
 
   /// Experimental, non-standard capabilities that the client supports.
@@ -136,6 +149,16 @@ extension type ClientCapabilities.fromMap(Map<String, Object?> _value) {
     assert(sampling == null);
     _value['sampling'] = value;
   }
+
+  /// Present if the client supports elicitation.
+  ElicitationCapability? get elicitation =>
+      _value['elicitation'] as ElicitationCapability?;
+
+  /// Sets [elicitation], asserting it is null first.
+  set elicitation(ElicitationCapability? value) {
+    assert(elicitation == null);
+    _value['elicitation'] = value;
+  }
 }
 
 /// Whether the client supports notifications for changes to the roots list.
@@ -154,6 +177,11 @@ extension type RootsCapabilities.fromMap(Map<String, Object?> _value) {
   }
 }
 
+/// Whether the client supports elicitation.
+extension type ElicitationCapability.fromMap(Map<String, Object?> _value) {
+  factory ElicitationCapability() => ElicitationCapability.fromMap({});
+}
+
 /// Capabilities that a server may support.
 ///
 /// Known capabilities are defined here, in this schema, but this is not a
@@ -166,12 +194,15 @@ extension type ServerCapabilities.fromMap(Map<String, Object?> _value) {
     Prompts? prompts,
     Resources? resources,
     Tools? tools,
+    @Deprecated('Do not use, only clients have this capability')
+    Elicitation? elicitation,
   }) => ServerCapabilities.fromMap({
     if (experimental != null) 'experimental': experimental,
     if (logging != null) 'logging': logging,
     if (prompts != null) 'prompts': prompts,
     if (resources != null) 'resources': resources,
     if (tools != null) 'tools': tools,
+    if (elicitation != null) 'elicitation': elicitation,
   });
 
   /// Experimental, non-standard capabilities that the server supports.
@@ -228,6 +259,17 @@ extension type ServerCapabilities.fromMap(Map<String, Object?> _value) {
   set tools(Tools? value) {
     assert(tools == null);
     _value['tools'] = value;
+  }
+
+  /// Present if the server supports elicitation.
+  @Deprecated('Do not use, only clients have this capability')
+  Elicitation? get elicitation => _value['elicitation'] as Elicitation?;
+
+  /// Sets [elicitation] if it is null, otherwise asserts.
+  @Deprecated('Do not use, only clients have this capability')
+  set elicitation(Elicitation? value) {
+    assert(elicitation == null);
+    _value['elicitation'] = value;
   }
 }
 
@@ -293,13 +335,32 @@ extension type Tools.fromMap(Map<String, Object?> _value) {
   }
 }
 
-/// Describes the name and version of an MCP implementation.
-extension type Implementation.fromMap(Map<String, Object?> _value) {
-  factory Implementation({required String name, required String version}) =>
-      Implementation.fromMap({'name': name, 'version': version});
+/// Elicitation parameter for [ServerCapabilities].
+@Deprecated('Do not use, only clients have this capability')
+extension type Elicitation.fromMap(Map<String, Object?> _value) {
+  factory Elicitation() => Elicitation.fromMap({});
+}
 
-  String get name => _value['name'] as String;
-  String get version => _value['version'] as String;
+/// Describes the name and version of an MCP implementation.
+extension type Implementation.fromMap(Map<String, Object?> _value)
+    implements BaseMetadata {
+  factory Implementation({
+    required String name,
+    required String version,
+    String? title,
+  }) => Implementation.fromMap({
+    'name': name,
+    'version': version,
+    if (title != null) 'title': title,
+  });
+
+  String get version {
+    final version = _value['version'] as String?;
+    if (version == null) {
+      throw ArgumentError('Missing version field in $Implementation.');
+    }
+    return version;
+  }
 }
 
 @Deprecated('Use Implementation instead.')

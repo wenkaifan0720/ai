@@ -9,6 +9,7 @@ import 'dart:io' as io show File;
 
 import 'package:async/async.dart';
 import 'package:dart_mcp/client.dart';
+import 'package:dart_mcp/stdio.dart';
 import 'package:dart_mcp_server/src/mixins/dtd.dart';
 import 'package:dart_mcp_server/src/server.dart';
 import 'package:dart_mcp_server/src/utils/constants.dart';
@@ -16,11 +17,13 @@ import 'package:dart_mcp_server/src/utils/sdk.dart';
 import 'package:dtd/dtd.dart';
 import 'package:file/file.dart';
 import 'package:file/local.dart';
+import 'package:file/memory.dart';
 import 'package:path/path.dart' as p;
 import 'package:process/process.dart';
 import 'package:stream_channel/stream_channel.dart';
 import 'package:test/test.dart';
 import 'package:test_process/test_process.dart';
+import 'package:unified_analytics/unified_analytics.dart';
 
 /// A full environment for integration testing the MCP server.
 ///
@@ -160,6 +163,22 @@ class TestHarness {
     expect(result.isError, isNot(true), reason: result.content.join('\n'));
   }
 
+  /// Helper to send [request] to [mcpServerConnection].
+  ///
+  /// Some methods will fail if the DTD connection is not yet ready.
+  Future<CallToolResult> callTool(
+    CallToolRequest request, {
+    bool expectError = false,
+  }) async {
+    final result = await mcpServerConnection.callTool(request);
+    expect(
+      result.isError,
+      expectError ? true : isNot(isTrue),
+      reason: result.content.join('\n'),
+    );
+    return result;
+  }
+
   /// Sends [request] to [mcpServerConnection], retrying [maxTries] times.
   ///
   /// Some methods will fail if the DTD connection is not yet ready.
@@ -169,19 +188,19 @@ class TestHarness {
     bool expectError = false,
   }) async {
     var tryCount = 0;
-    late CallToolResult lastResult;
-    while (tryCount++ < maxTries) {
-      lastResult = await mcpServerConnection.callTool(request);
-      if (lastResult.isError != true) return lastResult;
+    while (true) {
+      try {
+        return await callTool(request, expectError: expectError);
+      } catch (_) {
+        if (tryCount++ >= maxTries) rethrow;
+      }
       await Future<void>.delayed(Duration(milliseconds: 100 * tryCount));
     }
-    expect(
-      lastResult.isError,
-      expectError ? true : isNot(true),
-      reason: lastResult.content.join('\n'),
-    );
-    return lastResult;
   }
+
+  /// Calls [getPrompt] on the [mcpServerConnection].
+  Future<GetPromptResult> getPrompt(GetPromptRequest request) =>
+      mcpServerConnection.getPrompt(request);
 }
 
 /// The debug session for a single app.
@@ -232,8 +251,9 @@ final class AppDebugSession {
     final stdout = StreamQueue(process.stdoutStream());
     while (vmServiceUri == null && await stdout.hasNext) {
       final line = await stdout.next;
-      final serviceString =
-          isFlutter ? 'A Dart VM Service' : 'The Dart VM service';
+      final serviceString = isFlutter
+          ? 'A Dart VM Service'
+          : 'The Dart VM service';
       if (line.contains(serviceString)) {
         vmServiceUri = line
             .substring(line.indexOf('http:'))
@@ -266,16 +286,6 @@ final class AppDebugSession {
       await process.shouldExit(anyOf(0, Platform.isWindows ? -1 : -9));
     }
   }
-
-  /// Returns this as the Editor service representation.
-  DebugSession asEditorDebugSession({required bool includeVmServiceUri}) =>
-      DebugSession(
-        debuggerType: isFlutter ? 'Flutter' : 'Dart',
-        id: id,
-        name: 'Test app',
-        projectRootPath: projectRoot,
-        vmServiceUri: includeVmServiceUri ? vmServiceUri : null,
-      );
 }
 
 /// A basic MCP client which is started as a part of the harness.
@@ -300,8 +310,9 @@ class FakeEditorExtension {
   final TestProcess dtdProcess;
   final DartToolingDaemon dtd;
   final String dtdUri;
+  final String dtdSecret;
 
-  FakeEditorExtension._(this.dtd, this.dtdProcess, this.dtdUri);
+  FakeEditorExtension._(this.dtd, this.dtdProcess, this.dtdUri, this.dtdSecret);
 
   static int get nextId => ++_nextId;
   static int _nextId = 0;
@@ -309,48 +320,29 @@ class FakeEditorExtension {
   static Future<FakeEditorExtension> connect(Sdk sdk) async {
     final dtdProcess = await TestProcess.start(sdk.dartExecutablePath, [
       'tooling-daemon',
+      '--machine',
     ]);
-    final dtdUri = await _getDTDUri(dtdProcess);
+    final (:dtdUri, :dtdSecret) = await _getDTDInfo(dtdProcess);
     final dtd = await DartToolingDaemon.connect(Uri.parse(dtdUri));
-    final extension = FakeEditorExtension._(dtd, dtdProcess, dtdUri);
-    await extension._registerService();
-    return extension;
+    return FakeEditorExtension._(dtd, dtdProcess, dtdUri, dtdSecret);
   }
 
   Future<void> addDebugSession(AppDebugSession session) async {
     _debugSessions.add(session);
-    await dtd.postEvent(
-      'Editor',
-      'debugSessionStarted',
-      session.asEditorDebugSession(includeVmServiceUri: false),
-    );
-    // Fake a delay between session start and session ready (vm service URI is
-    // known).
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    await dtd.postEvent(
-      'Editor',
-      'debugSessionChanged',
-      session.asEditorDebugSession(includeVmServiceUri: true),
+    await dtd.registerVmService(
+      uri: session.vmServiceUri,
+      secret: dtdSecret,
+      name: session.id,
     );
   }
 
   Future<void> removeDebugSession(AppDebugSession session) async {
     if (_debugSessions.remove(session)) {
-      await dtd.postEvent('Editor', 'debugSessionStopped', {
-        'debugSessionId': session.id,
-      });
-    }
-  }
-
-  Future<void> _registerService() async {
-    await dtd.registerService('Editor', 'getDebugSessions', (request) async {
-      return GetDebugSessionsResponse(
-        debugSessions: [
-          for (var debugSession in debugSessions)
-            debugSession.asEditorDebugSession(includeVmServiceUri: true),
-        ],
+      await dtd.unregisterVmService(
+        uri: session.vmServiceUri,
+        secret: dtdSecret,
       );
-    });
+    }
   }
 
   Future<void> shutdown() async {
@@ -361,29 +353,22 @@ class FakeEditorExtension {
 }
 
 /// Reads DTD uri from the [dtdProcess] output.
-Future<String> _getDTDUri(TestProcess dtdProcess) async {
-  String? dtdUri;
-  final stdout = StreamQueue(dtdProcess.stdoutStream());
-  while (await stdout.hasNext) {
-    final line = await stdout.next;
-    const devtoolsLineStart = 'The Dart Tooling Daemon is listening on';
-    if (line.startsWith(devtoolsLineStart)) {
-      dtdUri = line.substring(line.indexOf('ws:'));
-      await stdout.cancel();
-      break;
-    }
-  }
-  if (dtdUri == null) {
-    throw StateError(
-      'Failed to scrape the Dart Tooling Daemon URI from the process output.',
-    );
-  }
-
-  return dtdUri;
+Future<({String dtdUri, String dtdSecret})> _getDTDInfo(
+  TestProcess dtdProcess,
+) async {
+  final decoded =
+      jsonDecode(await dtdProcess.stdoutStream().first) as Map<String, Object?>;
+  final details = decoded['tooling_daemon_details'] as Map<String, Object?>;
+  return (
+    dtdUri: details['uri'] as String,
+    dtdSecret: details['trusted_client_secret'] as String,
+  );
 }
 
-typedef ServerConnectionPair =
-    ({ServerConnection serverConnection, DartMCPServer? server});
+typedef ServerConnectionPair = ({
+  ServerConnection serverConnection,
+  DartMCPServer? server,
+});
 
 /// Starts up the [DartMCPServer] and connects [client] to it.
 ///
@@ -417,21 +402,49 @@ Future<ServerConnectionPair> _initializeMCPServer(
       clientController.stream,
       serverController.sink,
     );
+    final analyticsFileSystem = MemoryFileSystem();
+    final analyticsHomeDir = analyticsFileSystem.directory('home');
+    late Analytics analytics;
+    // Need to create it twice, for the first run analytics are never sent.
+    for (var i = 0; i < 2; i++) {
+      analytics = Analytics.fake(
+        tool: DashTool.dartTool,
+        dartVersion: Platform.version.substring(
+          0,
+          Platform.version.indexOf(' '),
+        ),
+        fs: analyticsFileSystem,
+        homeDirectory: analyticsHomeDir,
+        toolsMessageVersion: -2, // Required or else analytics are disabled
+      );
+    }
+    // Required to enable telemetry
+    analytics.clientShowedMessage();
+    expect(analytics.okToSend, true);
+
     server = DartMCPServer(
       serverChannel,
       processManager: TestProcessManager(),
       fileSystem: fileSystem,
       sdk: sdk,
+      analytics: analytics,
+      // So we can test them.
+      enableScreenshots: true,
     );
     addTearDown(server.shutdown);
     connection = client.connectServer(clientChannel);
   } else {
-    connection = await client.connectStdioServer(sdk.dartExecutablePath, [
+    final process = await Process.start(sdk.dartExecutablePath, [
       'pub', // Using `pub` gives us incremental compilation
       'run',
       'bin/main.dart',
       ...cliArgs,
     ]);
+    addTearDown(process.kill);
+    connection = client.connectServer(
+      stdioChannel(input: process.stdout, output: process.stdin),
+    );
+    unawaited(connection.done.then((_) => process.kill()));
   }
 
   final initializeResult = await connection.initialize(
