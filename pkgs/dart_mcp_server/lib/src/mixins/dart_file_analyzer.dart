@@ -209,7 +209,56 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   // Tool implementations using shared analysis context
 
   Future<CallToolResult> _getDartFileOutline(CallToolRequest request) async {
-    // This tool doesn't need analysis context, delegate to original implementation
+    final uriString = request.arguments?['uri'] as String?;
+    if (uriString == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `uri`.')],
+        isError: true,
+      );
+    }
+
+    // Check if this is a dart: or package: URI that needs conversion
+    if (uriString.startsWith('dart:') || uriString.startsWith('package:')) {
+      // Convert the URI first
+      final convertResult = await _convertDartUri(
+        CallToolRequest(
+          name: 'convert_dart_uri',
+          arguments: {'uri': uriString},
+        ),
+      );
+
+      if (convertResult.isError == true) {
+        return convertResult;
+      }
+
+      // Extract the converted file path from the result
+      final resultText = (convertResult.content.first as TextContent).text;
+      final pathMatch = RegExp(
+        r'resolved to file path:\s*(.+)',
+      ).firstMatch(resultText);
+      if (pathMatch == null) {
+        return CallToolResult(
+          content: [
+            TextContent(
+              text: 'Could not extract file path from URI conversion result.',
+            ),
+          ],
+          isError: true,
+        );
+      }
+
+      final convertedPath = pathMatch.group(1)!.trim();
+
+      // Create a new request with the converted file path
+      final convertedRequest = CallToolRequest(
+        name: request.name,
+        arguments: {...request.arguments!, 'uri': 'file://$convertedPath'},
+      );
+
+      return outline.getDartFileOutline(convertedRequest);
+    }
+
+    // For file: URIs or regular paths, use original implementation
     return outline.getDartFileOutline(request);
   }
 
@@ -248,12 +297,61 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     final symbolName = request.arguments?['name'] as String?;
     final getContainingDeclaration =
         request.arguments?['get_containing_declaration'] as bool? ?? true;
+    final uriString = request.arguments?['uri'] as String?;
 
     if (symbolName == null || symbolName.isEmpty) {
       return CallToolResult(
         content: [TextContent(text: 'Missing required argument `name`.')],
         isError: true,
       );
+    }
+
+    if (uriString == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required argument `uri`.')],
+        isError: true,
+      );
+    }
+
+    // Check if this is a dart: or package: URI that needs conversion
+    if (uriString.startsWith('dart:') || uriString.startsWith('package:')) {
+      // Convert the URI first
+      final convertResult = await _convertDartUri(
+        CallToolRequest(
+          name: 'convert_dart_uri',
+          arguments: {'uri': uriString},
+        ),
+      );
+
+      if (convertResult.isError == true) {
+        return convertResult;
+      }
+
+      // Extract the converted file path from the result
+      final resultText = (convertResult.content.first as TextContent).text;
+      final pathMatch = RegExp(
+        r'resolved to file path:\s*(.+)',
+      ).firstMatch(resultText);
+      if (pathMatch == null) {
+        return CallToolResult(
+          content: [
+            TextContent(
+              text: 'Could not extract file path from URI conversion result.',
+            ),
+          ],
+          isError: true,
+        );
+      }
+
+      final convertedPath = pathMatch.group(1)!.trim();
+
+      // Create a new request with the converted file path
+      final convertedRequest = CallToolRequest(
+        name: request.name,
+        arguments: {...request.arguments!, 'uri': 'file://$convertedPath'},
+      );
+
+      return _getSignature(convertedRequest);
     }
 
     return _withAnalysisContext(request, (context, filePath) async {
@@ -328,29 +426,9 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getDartFileOutlineTool = Tool(
     name: 'get_dart_file_outline',
     description:
-        '📋 **SECONDARY TOOL FOR BROAD EXPLORATION** 📋\n\n'
         'Parses a Dart file and returns a skeletal outline with method bodies removed, '
         'preserving class structure, method signatures, imports, and comments. '
-        'This provides an overview of the file structure for understanding organization, API surfaces, '
-        'and inheritance relationships without implementation details.\n\n'
-        '⚠️ **WHEN TO USE** (Only when get_signature is insufficient):\n'
-        '• **Unknown class exploration** - When you need to see ALL available methods\n'
-        '• **Architecture analysis** - Understanding inheritance and class relationships\n'
-        '• **Broad API discovery** - When you don\'t know what specific element to target\n'
-        '• **File overview** - Initial exploration of completely unfamiliar codebases\n\n'
-        '🚫 **AVOID IF**:\n'
-        '• You have specific error coordinates (use get_signature instead)\n'
-        '• You need info about a specific method/property (use get_signature)\n'
-        '• You want token efficiency (get_signature is more efficient)\n\n'
-        '🔄 **WORKFLOW INTEGRATION**:\n'
-        '• Use ONLY when get_signature cannot answer your question\n'
-        '• Follow up with get_signature for detailed parameter information\n'
-        '• Combine with convert_dart_uri to explore imported packages\n\n'
-        '💡 **BEST PRACTICES**:\n'
-        '• Use skip_imports=true when focusing on class definitions\n'
-        '• Use skip_comments=true for minimal structural view\n'
-        '• Use omit_skip_comments=true for cleaner outline presentation\n'
-        '• Perfect for understanding unfamiliar codebases or packages',
+        'Useful for getting an overview of file structure and API surfaces.',
     annotations: ToolAnnotations(
       title: 'Dart File Outline',
       readOnlyHint: true,
@@ -359,33 +437,10 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
       properties: {
         'uri': Schema.string(
           description:
-              'The URI of the Dart file to analyze. Can be a file:// URI or absolute file path. '
-              'Examples: "file:///path/to/main.dart" or "/Users/dev/project/lib/main.dart". '
-              'Use convert_dart_uri first if you have package: or dart: URIs.',
-        ),
-        'skip_expression_bodies': Schema.bool(
-          description:
-              'Whether to convert expression function bodies (=> syntax) to regular bodies with content skipped. '
-              'When true, `methodName() => implementation;` becomes `methodName() { /* skipped */ }`. '
-              'When false, preserves the original `=>` syntax. Defaults to false.',
-        ),
-        'omit_skip_comments': Schema.bool(
-          description:
-              'Whether to omit the "// Lines X-Y skipped" placeholder comments that indicate '
-              'where method bodies were removed. When true, provides a cleaner outline. '
-              'When false, shows exactly which lines were skipped for reference. Defaults to false.',
-        ),
-        'skip_imports': Schema.bool(
-          description:
-              'Whether to remove all import and export directives from the output. '
-              'Useful when you only need to see the defined classes and methods '
-              'without dependency information. Defaults to false.',
+              'The URI of the Dart file to analyze. Supports file:, dart:, and package: URIs.',
         ),
         'skip_comments': Schema.bool(
-          description:
-              'Whether to remove all comments (both single-line // and multi-line /* */) '
-              'from the output. Useful when you want a minimal code structure view. '
-              'Note: this removes original comments but may preserve skip indicators. Defaults to false.',
+          description: 'Remove all comments from the output.',
         ),
       },
       required: ['uri'],
@@ -397,38 +452,12 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     name: 'convert_dart_uri',
     description:
         'Converts Dart-specific URIs to actual file paths that can be accessed by other tools. '
-        'Essential for navigating Dart\'s module system and resolving dependencies. '
-        'Supports dart: core library URIs (dart:core, dart:io), package: URIs from pub dependencies '
-        '(package:flutter/material.dart), and converts them to the actual file locations on disk.\n\n'
-        '🎯 **WHEN TO USE**:\n'
-        '• Package exploration - Navigate to package source files\n'
-        '• Core library investigation - Access dart:core, dart:io implementations\n'
-        '• Following imports/exports - Convert import URIs to readable file paths\n'
-        '• Debugging dependency issues - Verify package locations\n'
-        '• Documentation research - Find actual source files for API exploration\n\n'
-        '🔄 **WORKFLOW INTEGRATION**:\n'
-        '• Use BEFORE get_dart_file_outline to explore package files\n'
-        '• Use BEFORE get_signature when analyzing external dependencies\n'
-        '• Combine with pub_dev_search workflow: search → add → convert → explore\n'
-        '• Bridge between import statements and actual file analysis\n\n'
-        '💡 **COMMON EXAMPLES**:\n'
-        '• "dart:core" → Core Dart library path\n'
-        '• "dart:io" → I/O library path\n'
-        '• "package:flutter/material.dart" → Flutter Material design path\n'
-        '• "package:http/http.dart" → HTTP client package path\n'
-        '• "file:///path/to/file.dart" → Returned as-is (already a file path)\n\n'
-        '⚠️ **REQUIREMENTS**: Requires analysis context with proper package resolution',
+        'Supports dart: core library URIs, package: URIs from dependencies, and file: URIs.',
     annotations: ToolAnnotations(title: 'Convert Dart URI', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
-          description:
-              'The URI to convert. Examples:\n'
-              '• dart:core - Core Dart library\n'
-              '• dart:io - Dart I/O library\n'
-              '• package:flutter/material.dart - Flutter Material package\n'
-              '• package:my_package/lib.dart - Local package reference\n'
-              '• file:///path/to/file.dart - File URI (returned as-is)',
+          description: 'The URI to convert (dart:, package:, or file: URI).',
         ),
       },
       required: ['uri'],
@@ -439,62 +468,22 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
-        '⚡ **PREFERRED TOOL FOR TARGETED ANALYSIS** ⚡\n'
-        '🎯 **DECISION RULE**: If you know the name of the element to analyze → USE THIS TOOL\n'
-        '📋 Only use get_dart_file_outline for broad exploration when you don\'t know what to target\n\n'
-        'Analyzes all occurrences of a symbol with the given name in a Dart file and returns the signature '
-        'of each declaration found. This tool performs "Find All Definitions" functionality - when you provide '
-        'a symbol name, it finds all declarations (classes, methods, variables, etc.) with that name and '
-        'returns their signatures. Essential for understanding APIs, method parameters, return types, and class definitions.\n\n'
-        '🚀 **ADVANTAGES** (Use this FIRST):\n'
-        '• **NAME-BASED SEARCH** - No need for exact coordinates, just provide the symbol name\n'
-        '• **COMPREHENSIVE RESULTS** - Finds all declarations with the given name\n'
-        '• **MULTIPLE MATCHES** - Returns signatures for all occurrences (methods, classes, variables, etc.)\n'
-        '• **TOKEN EFFICIENT** - Returns only the specific signatures you need\n'
-        '• **IMMEDIATE ANSWERS** - Faster than parsing entire file outlines\n\n'
-        '🎯 **WHAT TO SEARCH FOR**:\n'
-        '✅ **GOOD TARGETS**:\n'
-        '• Class names (e.g., "MyWidget", "UserService")\n'
-        '• Method names (e.g., "build", "initState", "fetchData")\n'
-        '• Variable names (e.g., "controller", "items")\n'
-        '• Constructor names (e.g., "MyWidget")\n'
-        '• Function names (e.g., "main", "helper")\n'
-        '• Field names (e.g., "title", "isEnabled")\n\n'
-        '❌ **LIMITATIONS**:\n'
-        '• Only finds exact name matches (case-sensitive)\n'
-        '• Won\'t find partial matches or similar names\n'
-        '• Requires the symbol to be declared in the specified file\n\n'
-        '🔄 **WORKFLOW INTEGRATION** (Primary Tool):\n'
-        '• **FIRST CHOICE** when you know the symbol name\n'
-        '• **NAME-DRIVEN WORKFLOW**: analyze_files → identify symbol names → get_signature → understand → fix\n'
-        '• Use for exploring specific APIs or understanding method signatures\n'
-        '• Only use get_dart_file_outline if you need to discover available symbols first\n\n'
-        '💡 **COMMON USE CASES**:\n'
-        '• Understanding method parameters: get_signature(name="build")\n'
-        '• Exploring class structure: get_signature(name="MyWidget")\n'
-        '• Finding constructor signatures: get_signature(name="MyClass")\n'
-        '• Checking variable types: get_signature(name="controller")',
+        'Finds all occurrences of a symbol with the given name in a Dart file and returns their signatures. '
+        'For variables, follows the type to return the type\'s declaration (e.g., searching for a Process variable returns the Process class signature). '
+        'Automatically deduplicates identical signatures.',
     annotations: ToolAnnotations(title: 'Get Signature', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
           description:
-              'The URI of the Dart file to analyze. '
-              'Examples: "file:///path/to/main.dart" or "/Users/dev/project/lib/main.dart". '
-              'Use convert_dart_uri first if you have package: or dart: URIs.',
+              'The URI of the Dart file to analyze. Supports file:, dart:, and package: URIs.',
         ),
         'name': Schema.string(
-          description:
-              'The name of the symbol to search for. This should be the exact name of the '
-              'class, method, variable, function, or other Dart symbol you want to analyze. '
-              'Case-sensitive exact match. Examples: "build", "MyWidget", "controller", "main".',
+          description: 'The name of the symbol to search for (case-sensitive).',
         ),
         'get_containing_declaration': Schema.bool(
           description:
-              'Whether to return the signature of the containing declaration instead of just the element declaration. '
-              'When true, if the symbol is inside a method body, it returns the method signature. '
-              'If inside a class, returns the class declaration. Useful for getting context about '
-              'the current scope rather than the specific symbol. Defaults to true.',
+              'Whether to return the containing declaration signature. Defaults to true.',
         ),
       },
       required: ['uri', 'name'],

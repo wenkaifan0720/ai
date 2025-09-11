@@ -21,13 +21,11 @@ Future<CallToolResult> getDartFileOutline(CallToolRequest request) async {
   final uri = Uri.parse(uriString);
   final filePath = uri.scheme == 'file' ? uri.toFilePath() : uriString;
 
-  final skipExpressionBodies =
-      request.arguments?['skip_expression_bodies'] as bool? ?? true;
-  final omitSkipComments =
-      request.arguments?['omit_skip_comments'] as bool? ?? true;
-  final skipPrivate = request.arguments?['skip_private'] as bool? ?? true;
+  final skipExpressionBodies = true;
+  final omitSkipComments = true;
+  final skipPrivate = true;
   final skipComments = request.arguments?['skip_comments'] as bool? ?? true;
-  final skipImports = request.arguments?['skip_imports'] as bool? ?? false;
+  final skipImports = false;
   try {
     final file = File(filePath);
     if (!await file.exists()) {

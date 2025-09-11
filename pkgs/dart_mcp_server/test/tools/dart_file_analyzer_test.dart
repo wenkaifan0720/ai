@@ -60,9 +60,6 @@ void main() {
             name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': false,
-              'omit_skip_comments': false,
-              'skip_imports': false,
               'skip_comments': false,
             },
           ),
@@ -78,8 +75,8 @@ void main() {
           outlineText,
           contains('class MyHomePage extends StatefulWidget'),
         );
-        expect(outlineText, contains('// Lines'));
-        expect(outlineText, contains('skipped'));
+        // Method bodies should be empty blocks
+        expect(outlineText, contains('Widget build(BuildContext context) {}'));
 
         // Should preserve imports
         expect(outlineText, contains("import 'package:flutter/material.dart'"));
@@ -111,9 +108,6 @@ void main() {
             name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': false,
-              'omit_skip_comments': false,
-              'skip_imports': false,
               'skip_comments': false,
             },
           ),
@@ -121,10 +115,10 @@ void main() {
 
         expect(result.isError, isNot(true));
         final outlineText = (result.content.first as TextContent).text;
-        expect(outlineText, contains('State<MyHomePage> createState() =>'));
+        expect(outlineText, contains('State<MyHomePage> createState() {}'));
       });
 
-      test('works with omit_skip_comments option', () async {
+      test('preserves basic structure', () async {
         final testFilePath = p.join(
           testHarness.fileSystem.currentDirectory.path,
           'test_fixtures',
@@ -138,9 +132,6 @@ void main() {
             name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': false,
-              'omit_skip_comments': true,
-              'skip_imports': false,
               'skip_comments': false,
             },
           ),
@@ -148,35 +139,8 @@ void main() {
 
         expect(result.isError, isNot(true));
         final outlineText = (result.content.first as TextContent).text;
-        expect(outlineText, isNot(contains('Lines')));
-        expect(outlineText, isNot(contains('skipped')));
-      });
-
-      test('works with skip_imports option', () async {
-        final testFilePath = p.join(
-          testHarness.fileSystem.currentDirectory.path,
-          'test_fixtures',
-          'counter_app',
-          'lib',
-          'main.dart',
-        );
-
-        final result = await testHarness.callToolWithRetry(
-          CallToolRequest(
-            name: getFileOutlineTool.name,
-            arguments: {
-              'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': false,
-              'omit_skip_comments': false,
-              'skip_imports': true,
-              'skip_comments': false,
-            },
-          ),
-        );
-
-        expect(result.isError, isNot(true));
-        final outlineText = (result.content.first as TextContent).text;
-        expect(outlineText, isNot(contains('import')));
+        // Test that basic outline structure is preserved
+        expect(outlineText, contains('class MyApp'));
       });
 
       test('works with skip_comments option', () async {
@@ -193,9 +157,6 @@ void main() {
             name: getFileOutlineTool.name,
             arguments: {
               'uri': Uri.file(testFilePath).toString(),
-              'skip_expression_bodies': false,
-              'omit_skip_comments': true,
-              'skip_imports': false,
               'skip_comments': true,
             },
           ),
@@ -224,9 +185,6 @@ void main() {
             name: getFileOutlineTool.name,
             arguments: {
               'uri': 'file:///non/existent/file.dart',
-              'skip_expression_bodies': false,
-              'omit_skip_comments': false,
-              'skip_imports': false,
               'skip_comments': false,
             },
           ),
@@ -244,12 +202,7 @@ void main() {
         final result = await testHarness.callToolWithRetry(
           CallToolRequest(
             name: getFileOutlineTool.name,
-            arguments: {
-              'skip_expression_bodies': false,
-              'omit_skip_comments': false,
-              'skip_imports': false,
-              'skip_comments': false,
-            },
+            arguments: {'skip_comments': false},
           ),
           expectError: true,
         );
@@ -350,6 +303,24 @@ void main() {
         expect(result.content, hasLength(1));
         final resultText = (result.content.first as TextContent).text;
         expect(resultText, contains('Could not resolve URI'));
+      });
+    });
+
+    group('URI conversion integration', () {
+      test('get_dart_file_outline works with dart: URIs', () async {
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getFileOutlineTool.name,
+            arguments: {'uri': 'dart:core', 'skip_comments': true},
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        expect(result.content, hasLength(1));
+
+        final outlineText = (result.content.first as TextContent).text;
+        expect(outlineText, contains('Dart file outline'));
+        expect(outlineText, contains('library dart.core'));
       });
     });
   });

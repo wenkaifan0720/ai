@@ -319,5 +319,22 @@ void main() {
         contains('No element found at the specified location'),
       );
     });
+
+    test('handles dart: URIs gracefully', () async {
+      final result = await testHarness.callToolWithRetry(
+        CallToolRequest(
+          name: getSignatureTool.name,
+          arguments: {
+            'uri': 'dart:core',
+            'name': 'String',
+            'get_containing_declaration': true,
+          },
+        ),
+      );
+
+      // Should either work or fail gracefully (analysis context dependent)
+      expect(result.isError, isNot(true));
+      expect(result.content, hasLength(1));
+    });
   });
 }
