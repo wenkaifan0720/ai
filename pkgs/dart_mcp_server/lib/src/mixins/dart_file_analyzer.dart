@@ -245,32 +245,22 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
 
   Future<CallToolResult> _getSignature(CallToolRequest request) async {
     // Validate arguments early, before trying to get analysis context
-    final line = request.arguments?['line'] as int?;
-    final column = request.arguments?['column'] as int?;
+    final symbolName = request.arguments?['name'] as String?;
     final getContainingDeclaration =
         request.arguments?['get_containing_declaration'] as bool? ?? true;
 
-    if (line == null) {
+    if (symbolName == null || symbolName.isEmpty) {
       return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `line`.')],
-        isError: true,
-      );
-    }
-
-    if (column == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `column`.')],
+        content: [TextContent(text: 'Missing required argument `name`.')],
         isError: true,
       );
     }
 
     return _withAnalysisContext(request, (context, filePath) async {
-      // Convert from 1-based (user input) to 0-based (internal functions)
-      return element_signature.getElementDeclarationSignature(
+      return element_signature.getElementDeclarationSignaturesByName(
         context,
         filePath,
-        line - 1,
-        column - 1,
+        symbolName,
         getContainingDeclaration: getContainingDeclaration,
       );
     });
@@ -445,46 +435,45 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     ),
   );
 
-  /// Tool for getting the signature of an element at a specific location.
+  /// Tool for getting the signature of an element by name.
   static final getSignatureTool = Tool(
     name: 'get_signature',
     description:
         '⚡ **PREFERRED TOOL FOR TARGETED ANALYSIS** ⚡\n'
-        '🎯 **DECISION RULE**: If you have error coordinates or know what element to analyze → USE THIS TOOL\n'
+        '🎯 **DECISION RULE**: If you know the name of the element to analyze → USE THIS TOOL\n'
         '📋 Only use get_dart_file_outline for broad exploration when you don\'t know what to target\n\n'
-        'Analyzes a specific location in a Dart file and returns the signature of the element at that position. '
-        'This tool performs "Go to Definition" functionality - when you point to a method call, variable reference, '
-        'or type usage, it returns the signature of the actual declaration, not the usage site. '
-        'Essential for understanding APIs, method parameters, return types, and class definitions.\n\n'
+        'Analyzes all occurrences of a symbol with the given name in a Dart file and returns the signature '
+        'of each declaration found. This tool performs "Find All Definitions" functionality - when you provide '
+        'a symbol name, it finds all declarations (classes, methods, variables, etc.) with that name and '
+        'returns their signatures. Essential for understanding APIs, method parameters, return types, and class definitions.\n\n'
         '🚀 **ADVANTAGES** (Use this FIRST):\n'
-        '• **TOKEN EFFICIENT** - Returns only the specific signature you need\n'
-        '• **DIRECT ERROR INTEGRATION** - Use coordinates directly from analyze_files\n'
-        '• **PRECISE TARGETING** - Get exact API information for specific elements\n'
+        '• **NAME-BASED SEARCH** - No need for exact coordinates, just provide the symbol name\n'
+        '• **COMPREHENSIVE RESULTS** - Finds all declarations with the given name\n'
+        '• **MULTIPLE MATCHES** - Returns signatures for all occurrences (methods, classes, variables, etc.)\n'
+        '• **TOKEN EFFICIENT** - Returns only the specific signatures you need\n'
         '• **IMMEDIATE ANSWERS** - Faster than parsing entire file outlines\n\n'
-        '🎯 **STRATEGIC POSITIONING** (Where to Point):\n'
+        '🎯 **WHAT TO SEARCH FOR**:\n'
         '✅ **GOOD TARGETS**:\n'
-        '• Constructor names (for parameter lists)\n'
-        '• Method names (for signatures and parameters)\n'
-        '• Property names (for type information)\n'
-        '• Class names (for class declarations)\n'
-        '• Type declarations in field definitions\n\n'
-        '❌ **BAD TARGETS** (Will Fail):\n'
-        '• Undefined methods/properties (use analyze_files first)\n'
-        '• Error tokens or syntax errors\n'
-        '• Random positions or line 0, column 0\n'
-        '• Comments or whitespace\n\n'
+        '• Class names (e.g., "MyWidget", "UserService")\n'
+        '• Method names (e.g., "build", "initState", "fetchData")\n'
+        '• Variable names (e.g., "controller", "items")\n'
+        '• Constructor names (e.g., "MyWidget")\n'
+        '• Function names (e.g., "main", "helper")\n'
+        '• Field names (e.g., "title", "isEnabled")\n\n'
+        '❌ **LIMITATIONS**:\n'
+        '• Only finds exact name matches (case-sensitive)\n'
+        '• Won\'t find partial matches or similar names\n'
+        '• Requires the symbol to be declared in the specified file\n\n'
         '🔄 **WORKFLOW INTEGRATION** (Primary Tool):\n'
-        '• **FIRST CHOICE** after analyze_files - Use error coordinates directly\n'
-        '• **ERROR-DRIVEN WORKFLOW**: analyze_files → get_signature → understand → fix\n'
-        '• Only use get_dart_file_outline if this tool cannot answer your question\n'
-        '• Two-step process for undefined methods:\n'
-        '  1. Position on the object/service name\n'
-        '  2. Navigate to declaration and position on type\n\n'
-        '💡 **COMMON ERROR PATTERNS**:\n'
-        '• Parameter errors → Point to constructor/method name\n'
-        '• Undefined method → Point to object type, then explore class\n'
-        '• Type issues → Point to type declaration\n'
-        '• Import problems → Use convert_dart_uri first',
+        '• **FIRST CHOICE** when you know the symbol name\n'
+        '• **NAME-DRIVEN WORKFLOW**: analyze_files → identify symbol names → get_signature → understand → fix\n'
+        '• Use for exploring specific APIs or understanding method signatures\n'
+        '• Only use get_dart_file_outline if you need to discover available symbols first\n\n'
+        '💡 **COMMON USE CASES**:\n'
+        '• Understanding method parameters: get_signature(name="build")\n'
+        '• Exploring class structure: get_signature(name="MyWidget")\n'
+        '• Finding constructor signatures: get_signature(name="MyClass")\n'
+        '• Checking variable types: get_signature(name="controller")',
     annotations: ToolAnnotations(title: 'Get Signature', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
@@ -494,23 +483,21 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
               'Examples: "file:///path/to/main.dart" or "/Users/dev/project/lib/main.dart". '
               'Use convert_dart_uri first if you have package: or dart: URIs.',
         ),
-        'line': Schema.int(
+        'name': Schema.string(
           description:
-              'The one-based line number of the cursor position in the file.',
-        ),
-        'column': Schema.int(
-          description:
-              'The one-based column number of the cursor position within the line.',
+              'The name of the symbol to search for. This should be the exact name of the '
+              'class, method, variable, function, or other Dart symbol you want to analyze. '
+              'Case-sensitive exact match. Examples: "build", "MyWidget", "controller", "main".',
         ),
         'get_containing_declaration': Schema.bool(
           description:
               'Whether to return the signature of the containing declaration instead of just the element declaration. '
-              'When true, if the cursor is inside a method body, it returns the method signature. '
+              'When true, if the symbol is inside a method body, it returns the method signature. '
               'If inside a class, returns the class declaration. Useful for getting context about '
-              'the current scope rather than the specific symbol under the cursor.',
+              'the current scope rather than the specific symbol. Defaults to true.',
         ),
       },
-      required: ['uri', 'line', 'column'],
+      required: ['uri', 'name'],
     ),
   );
 }

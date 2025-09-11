@@ -70,9 +70,9 @@ base mixin DartAnalyzerSupport
 
     if (unsupportedReasons.isEmpty) {
       registerTool(analyzeFilesTool, _analyzeFiles);
-      registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
-      registerTool(signatureHelpTool, _signatureHelp);
-      registerTool(hoverTool, _hover);
+      // registerTool(resolveWorkspaceSymbolTool, _resolveWorkspaceSymbol);
+      // registerTool(signatureHelpTool, _signatureHelp);
+      // registerTool(hoverTool, _hover);
     }
 
     // Don't call any methods on the client until we are fully initialized

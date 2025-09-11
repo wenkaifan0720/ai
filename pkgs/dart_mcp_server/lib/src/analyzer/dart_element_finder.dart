@@ -138,3 +138,165 @@ AstNode? _locateNode(AstNode root, int offset) {
   visitNode(root);
   return result;
 }
+
+/// Finds all locations of a symbol with the given name in a Dart file.
+///
+/// This method searches for all occurrences of identifiers, method names, class names,
+/// etc. that match the given name and returns their line/column positions.
+///
+/// Returns a list of LocationInfo objects containing the positions and types of matches.
+Future<List<LocationInfo>> findSymbolLocationsByName(
+  AnalysisContext analysisContext,
+  String filePath,
+  String symbolName,
+) async {
+  try {
+    // Normalize the file path
+    final normalizedPath = path.normalize(filePath);
+
+    // Get the resolved library result (includes full library context)
+    final libraryResult = await analysisContext.currentSession
+        .getResolvedLibrary(normalizedPath);
+
+    if (libraryResult is! ResolvedLibraryResult) {
+      return [];
+    }
+
+    // Find the specific unit within the library that matches our file
+    ResolvedUnitResult? unitResult;
+    for (final unit in libraryResult.units) {
+      if (path.normalize(unit.path) == normalizedPath) {
+        unitResult = unit;
+        break;
+      }
+    }
+
+    if (unitResult == null) {
+      return [];
+    }
+
+    final locations = <LocationInfo>[];
+
+    // Visit all nodes in the AST and find matches
+    _findSymbolMatches(
+      unitResult.unit,
+      unitResult.content,
+      symbolName,
+      locations,
+    );
+
+    return locations;
+  } catch (e) {
+    return [];
+  }
+}
+
+/// Recursively searches for symbol matches in the AST
+void _findSymbolMatches(
+  AstNode node,
+  String content,
+  String symbolName,
+  List<LocationInfo> locations,
+) {
+  // Check if this node represents a symbol with the target name
+  String? nodeName;
+  int? nameOffset;
+
+  if (node is ClassDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is MethodDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is FunctionDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is VariableDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is FieldDeclaration) {
+    for (final variable in node.fields.variables) {
+      if (variable.name.lexeme == symbolName) {
+        final pos = _getLineColumnFromOffset(content, variable.name.offset);
+        if (pos != null) {
+          locations.add(LocationInfo(line: pos.line, column: pos.column));
+        }
+      }
+    }
+  } else if (node is ConstructorDeclaration) {
+    nodeName = node.name?.lexeme;
+    if (node.name != null) {
+      nameOffset = node.name!.offset;
+    }
+  } else if (node is EnumDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is MixinDeclaration) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is ExtensionDeclaration) {
+    nodeName = node.name?.lexeme;
+    if (node.name != null) {
+      nameOffset = node.name!.offset;
+    }
+  } else if (node is TypeAlias) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is SimpleIdentifier && node.name == symbolName) {
+    // Handle identifier references
+    final pos = _getLineColumnFromOffset(content, node.offset);
+    if (pos != null) {
+      locations.add(LocationInfo(line: pos.line, column: pos.column));
+    }
+  }
+
+  // If we found a matching declaration name, use the name's offset for precision
+  if (nodeName == symbolName && nameOffset != null) {
+    final pos = _getLineColumnFromOffset(content, nameOffset);
+    if (pos != null) {
+      locations.add(LocationInfo(line: pos.line, column: pos.column));
+    }
+  }
+
+  // Recursively search child nodes
+  node.childEntities.whereType<AstNode>().forEach((child) {
+    _findSymbolMatches(child, content, symbolName, locations);
+  });
+}
+
+/// Converts character offset to line and column
+LineColumnPosition? _getLineColumnFromOffset(String content, int offset) {
+  try {
+    final lines = content.split('\n');
+    int currentOffset = 0;
+
+    for (int lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      final lineLength = lines[lineIndex].length;
+      if (currentOffset + lineLength >= offset) {
+        final column = offset - currentOffset;
+        return LineColumnPosition(line: lineIndex, column: column);
+      }
+      currentOffset += lineLength + 1; // +1 for newline
+    }
+
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/// Represents a location in a file
+class LocationInfo {
+  final int line;
+  final int column;
+
+  LocationInfo({required this.line, required this.column});
+}
+
+/// Represents a line/column position
+class LineColumnPosition {
+  final int line;
+  final int column;
+
+  LineColumnPosition({required this.line, required this.column});
+}

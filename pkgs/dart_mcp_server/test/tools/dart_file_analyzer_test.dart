@@ -257,7 +257,7 @@ void main() {
         expect(result.isError, isTrue);
         expect(
           (result.content.first as TextContent).text,
-          contains('Missing required argument'),
+          contains('Required property "uri" is missing'),
         );
       });
     });
@@ -306,7 +306,7 @@ void main() {
         expect(result.isError, isTrue);
         expect(
           (result.content.first as TextContent).text,
-          contains('Missing required argument `uri`'),
+          contains('Required property "uri" is missing'),
         );
       });
 

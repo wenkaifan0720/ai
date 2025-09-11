@@ -17,6 +17,7 @@ import 'package:unified_analytics/unified_analytics.dart';
 
 import 'arg_parser.dart';
 import 'mixins/analyzer.dart';
+import 'mixins/dart_file_analyzer.dart';
 import 'mixins/dash_cli.dart';
 import 'mixins/dtd.dart';
 import 'mixins/prompts.dart';
@@ -38,6 +39,7 @@ final class DartMCPServer extends MCPServer
         RootsFallbackSupport,
         DashCliSupport,
         DartAnalyzerSupport,
+        DartFileAnalyzerSupport,
         PubSupport,
         PubDevSupport,
         DartToolingDaemonSupport,
