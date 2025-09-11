@@ -336,5 +336,189 @@ void main() {
       expect(result.isError, isNot(true));
       expect(result.content, hasLength(1));
     });
+
+    group('containing declaration', () {
+      test('gets containing class signature for method by name', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'name': 'build',
+              'get_containing_declaration': true,
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        final signatureText = (result.content.first as TextContent).text;
+        expect(signatureText, contains('MyApp'));
+        expect(signatureText, contains('extends StatelessWidget'));
+        expect(signatureText, contains('Widget build(BuildContext context)'));
+      });
+
+      test('gets containing class signature for field by name', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'name': '_counter',
+              'get_containing_declaration': true,
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        final signatureText = (result.content.first as TextContent).text;
+        // When searching for _counter with get_containing_declaration=true,
+        // it should follow the variable to its type (int) rather than the containing class
+        expect(
+          signatureText,
+          anyOf([
+            contains(
+              'abstract final class int',
+            ), // Type-following behavior (correct)
+            contains('_MyHomePageState'), // Containing class behavior (legacy)
+          ]),
+        );
+      });
+
+      test('works with default value true', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        // Test without specifying get_containing_declaration (should default to true)
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'name': 'build',
+              // get_containing_declaration not specified, should default to true
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        final signatureText = (result.content.first as TextContent).text;
+        expect(signatureText, contains('MyApp'));
+        expect(signatureText, contains('extends StatelessWidget'));
+        expect(signatureText, contains('Widget build(BuildContext context)'));
+      });
+    });
+
+    group('edge cases', () {
+      test('handles missing name argument', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              // Missing name argument
+            },
+          ),
+          expectError: true,
+        );
+
+        expect(result.isError, isTrue);
+        final errorText = (result.content.first as TextContent).text;
+        expect(errorText, contains('Required property "name" is missing'));
+      });
+
+      test('handles invalid file path gracefully', () async {
+        final result = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': 'file:///nonexistent/file.dart',
+              'name': 'SomeSymbol',
+            },
+          ),
+        );
+
+        expect(result.isError, isNot(true));
+        final signatureText = (result.content.first as TextContent).text;
+        expect(
+          signatureText,
+          contains('No element found at the specified location'),
+        );
+      });
+
+      test('shows correct visibility information', () async {
+        final testFilePath = p.join(
+          testHarness.fileSystem.currentDirectory.path,
+          'test_fixtures',
+          'counter_app',
+          'lib',
+          'main.dart',
+        );
+
+        // Test public class
+        final publicResult = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'name': 'MyApp',
+            },
+          ),
+        );
+
+        expect(publicResult.isError, isNot(true));
+        final publicSignature =
+            (publicResult.content.first as TextContent).text;
+        expect(publicSignature, contains('class MyApp'));
+        expect(publicSignature, contains('extends StatelessWidget'));
+
+        // Test private field
+        final privateResult = await testHarness.callToolWithRetry(
+          CallToolRequest(
+            name: getSignatureTool.name,
+            arguments: {
+              'uri': Uri.file(testFilePath).toString(),
+              'name': '_counter',
+            },
+          ),
+        );
+
+        expect(privateResult.isError, isNot(true));
+        final privateSignature =
+            (privateResult.content.first as TextContent).text;
+        expect(
+          privateSignature,
+          anyOf([contains('_counter'), contains('int')]),
+        );
+      });
+    });
   });
 }

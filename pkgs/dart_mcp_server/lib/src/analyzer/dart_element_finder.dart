@@ -26,24 +26,12 @@ Future<AstNode?> getAstNodeAtLocation(
     // Normalize the file path
     final normalizedPath = path.normalize(filePath);
 
-    // Get the resolved library result (includes full library context)
-    final libraryResult = await analysisContext.currentSession
-        .getResolvedLibrary(normalizedPath);
+    // Get the resolved unit result directly (more reliable than library)
+    final unitResult = await analysisContext.currentSession.getResolvedUnit(
+      normalizedPath,
+    );
 
-    if (libraryResult is! ResolvedLibraryResult) {
-      return null;
-    }
-
-    // Find the specific unit within the library that matches our file
-    ResolvedUnitResult? unitResult;
-    for (final unit in libraryResult.units) {
-      if (path.normalize(unit.path) == normalizedPath) {
-        unitResult = unit;
-        break;
-      }
-    }
-
-    if (unitResult == null) {
+    if (unitResult is! ResolvedUnitResult) {
       return null;
     }
 
@@ -89,6 +77,20 @@ Future<Element2?> getElementAtLocation(
     // Use the built-in ElementLocator for robust and comprehensive element
     // extraction
     final element = ElementLocator.locate2(node);
+
+    // If ElementLocator couldn't find an element, try to get it directly from the node
+    if (element == null && node is ExtensionTypeDeclaration) {
+      final declaredElement = node.declaredElement;
+      if (declaredElement != null) {
+        // Try to cast to Element2 directly (extension types should support this)
+        try {
+          return declaredElement as Element2;
+        } catch (e) {
+          // If casting fails, return null to indicate we couldn't resolve
+          return null;
+        }
+      }
+    }
 
     return element;
   } catch (e) {
@@ -154,24 +156,12 @@ Future<List<LocationInfo>> findSymbolLocationsByName(
     // Normalize the file path
     final normalizedPath = path.normalize(filePath);
 
-    // Get the resolved library result (includes full library context)
-    final libraryResult = await analysisContext.currentSession
-        .getResolvedLibrary(normalizedPath);
+    // Get the resolved unit result directly
+    final unitResult = await analysisContext.currentSession.getResolvedUnit(
+      normalizedPath,
+    );
 
-    if (libraryResult is! ResolvedLibraryResult) {
-      return [];
-    }
-
-    // Find the specific unit within the library that matches our file
-    ResolvedUnitResult? unitResult;
-    for (final unit in libraryResult.units) {
-      if (path.normalize(unit.path) == normalizedPath) {
-        unitResult = unit;
-        break;
-      }
-    }
-
-    if (unitResult == null) {
+    if (unitResult is! ResolvedUnitResult) {
       return [];
     }
 
@@ -240,6 +230,9 @@ void _findSymbolMatches(
       nameOffset = node.name!.offset;
     }
   } else if (node is TypeAlias) {
+    nodeName = node.name.lexeme;
+    nameOffset = node.name.offset;
+  } else if (node is ExtensionTypeDeclaration) {
     nodeName = node.name.lexeme;
     nameOffset = node.name.offset;
   } else if (node is SimpleIdentifier && node.name == symbolName) {

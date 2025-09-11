@@ -476,7 +476,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
       properties: {
         'uri': Schema.string(
           description:
-              'The URI of the Dart file to analyze. Supports file:, dart:, and package: URIs.',
+              'The URI of the Dart file containing the symbol to search for. Supports file:, dart:, and package: URIs.',
         ),
         'name': Schema.string(
           description: 'The name of the symbol to search for (case-sensitive).',
