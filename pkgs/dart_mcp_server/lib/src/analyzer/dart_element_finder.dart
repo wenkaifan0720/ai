@@ -235,7 +235,23 @@ void _findSymbolMatches(
   } else if (node is ExtensionTypeDeclaration) {
     nodeName = node.name.lexeme;
     nameOffset = node.name.offset;
-  } else if (node is SimpleIdentifier && node.name == symbolName) {
+  } else if (node is NamedType) {
+    // NamedType nodes represent type references (e.g., "Widget" in "Widget build()")
+    // The name is stored as a Token in childEntities, not as an AstNode child
+    // So we need to check the token directly
+    for (final entity in node.childEntities) {
+      if (entity.toString() == symbolName) {
+        final pos = _getLineColumnFromOffset(content, entity.offset);
+        if (pos != null) {
+          locations.add(LocationInfo(line: pos.line, column: pos.column));
+        }
+        break; // Found the match, no need to continue
+      }
+    }
+  }
+
+  // Handle all identifier references (including those in expressions)
+  if (node is SimpleIdentifier && node.name == symbolName) {
     // Handle identifier references
     final pos = _getLineColumnFromOffset(content, node.offset);
     if (pos != null) {

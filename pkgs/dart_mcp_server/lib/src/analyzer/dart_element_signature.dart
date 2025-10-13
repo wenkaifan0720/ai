@@ -181,6 +181,16 @@ Future<Element2?> _findDeclarationElement(
     if (typeElement != null) return typeElement;
   }
 
+  // Type-defining elements (classes, enums, mixins, etc.) are already declarations
+  // Return them as-is since they represent the actual definition
+  if (element is InterfaceElement2 ||
+      element is EnumElement2 ||
+      element is MixinElement2 ||
+      element is ExtensionElement2 ||
+      element is ExtensionTypeElement2) {
+    return element;
+  }
+
   // For identifier nodes at cursor, try static type resolution
   if (analysisContext != null &&
       filePath != null &&
