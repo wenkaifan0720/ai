@@ -16,6 +16,16 @@ import 'package:dart_mcp/server.dart';
 import 'dart_element_finder.dart' as element_finder;
 import 'signature_visitor.dart';
 
+/// Helper to create a success result with text content
+CallToolResult _successResult(String text) {
+  return CallToolResult(content: [TextContent(text: text)], isError: false);
+}
+
+/// Helper to create an error result with error message
+CallToolResult _errorResult(String message) {
+  return CallToolResult(content: [TextContent(text: message)], isError: true);
+}
+
 /// Try to extract an Element2 from a DartType using typed analyzer APIs.
 Element2? _element2FromDartType(DartType? type) {
   if (type == null) return null;
@@ -71,13 +81,8 @@ Future<CallToolResult> getElementDeclarationSignature(
     );
 
     if (element == null) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text: 'No element found at line $line, column $column in $filePath',
-          ),
-        ],
-        isError: false,
+      return _successResult(
+        'No element found at line $line, column $column in $filePath',
       );
     }
 
@@ -92,11 +97,7 @@ Future<CallToolResult> getElementDeclarationSignature(
 
     // If we couldn't find a declaration element, return the original element
     if (declarationElement == null) {
-      final signature = _generateSignatureFromElement(element);
-      return CallToolResult(
-        content: [TextContent(text: signature)],
-        isError: false,
-      );
+      return _successResult(_generateSignatureFromElement(element));
     }
 
     // Get declaration source and offset
@@ -106,29 +107,17 @@ Future<CallToolResult> getElementDeclarationSignature(
 
     // Try to parse and locate the declaration node
     if (declarationSource == null || nameOffset == null) {
-      final signature = _generateSignatureFromElement(declarationElement);
-      return CallToolResult(
-        content: [TextContent(text: signature)],
-        isError: false,
-      );
+      return _successResult(_generateSignatureFromElement(declarationElement));
     }
 
     final unit = await _parseFileDirectly(declarationSource.fullName);
     if (unit == null) {
-      final signature = _generateSignatureFromElement(declarationElement);
-      return CallToolResult(
-        content: [TextContent(text: signature)],
-        isError: false,
-      );
+      return _successResult(_generateSignatureFromElement(declarationElement));
     }
 
     final targetNode = _findNodeAtOffset(unit, nameOffset);
     if (targetNode == null) {
-      final signature = _generateSignatureFromElement(declarationElement);
-      return CallToolResult(
-        content: [TextContent(text: signature)],
-        isError: false,
-      );
+      return _successResult(_generateSignatureFromElement(declarationElement));
     }
 
     // Find the target node based on the getContainingDeclaration option
@@ -139,17 +128,9 @@ Future<CallToolResult> getElementDeclarationSignature(
     // Generate signature directly from the AST node
     final signature = _generateSignatureFromAstNode(finalNode);
 
-    return CallToolResult(
-      content: [TextContent(text: signature)],
-      isError: false,
-    );
+    return _successResult(signature);
   } catch (e) {
-    return CallToolResult(
-      content: [
-        TextContent(text: 'Error getting element declaration signature: $e'),
-      ],
-      isError: true,
-    );
+    return _errorResult('Error getting element declaration signature: $e');
   }
 }
 
@@ -305,13 +286,8 @@ Future<CallToolResult> getElementSignature(
     );
 
     if (node == null) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text: 'No element found at line $line, column $column in $filePath',
-          ),
-        ],
-        isError: false,
+      return _successResult(
+        'No element found at line $line, column $column in $filePath',
       );
     }
 
@@ -323,15 +299,9 @@ Future<CallToolResult> getElementSignature(
     // Generate signature using the target node's source code
     final signature = _generateSignatureFromAstNode(targetNode);
 
-    return CallToolResult(
-      content: [TextContent(text: signature)],
-      isError: false,
-    );
+    return _successResult(signature);
   } catch (e) {
-    return CallToolResult(
-      content: [TextContent(text: 'Error getting element signature: $e')],
-      isError: true,
-    );
+    return _errorResult('Error getting element signature: $e');
   }
 }
 
@@ -351,16 +321,19 @@ AstNode? _findContainingDeclaration(AstNode node) {
   var current = node.parent;
 
   while (current != null) {
-    if (current is ClassDeclaration ||
-        current is MixinDeclaration ||
-        current is ExtensionDeclaration ||
-        current is EnumDeclaration ||
-        current is TypeAlias ||
-        current is FunctionDeclaration ||
-        current is TopLevelVariableDeclaration) {
-      return current;
+    // Use switch expression for cleaner type checking
+    switch (current) {
+      case ClassDeclaration() ||
+          MixinDeclaration() ||
+          ExtensionDeclaration() ||
+          EnumDeclaration() ||
+          TypeAlias() ||
+          FunctionDeclaration() ||
+          TopLevelVariableDeclaration():
+        return current;
+      default:
+        current = current.parent;
     }
-    current = current.parent;
   }
 
   return null;
@@ -395,13 +368,8 @@ Future<CallToolResult> getElementDeclarationSignaturesByName(
     );
 
     if (locations.isEmpty) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text: 'No elements found with name "$symbolName" in $filePath',
-          ),
-        ],
-        isError: false,
+      return _successResult(
+        'No elements found with name "$symbolName" in $filePath',
       );
     }
 
@@ -436,14 +404,8 @@ Future<CallToolResult> getElementDeclarationSignaturesByName(
     final signatures = uniqueSignatures.toList();
 
     if (signatures.isEmpty) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text:
-                'Found ${locations.length} occurrences of "$symbolName" but could not retrieve signatures for any of them.',
-          ),
-        ],
-        isError: false,
+      return _successResult(
+        'Found ${locations.length} occurrences of "$symbolName" but could not retrieve signatures for any of them.',
       );
     }
 
@@ -467,18 +429,10 @@ Future<CallToolResult> getElementDeclarationSignaturesByName(
       }
     }
 
-    return CallToolResult(
-      content: [TextContent(text: buffer.toString())],
-      isError: false,
-    );
+    return _successResult(buffer.toString());
   } catch (e) {
-    return CallToolResult(
-      content: [
-        TextContent(
-          text: 'Error getting element declaration signatures by name: $e',
-        ),
-      ],
-      isError: true,
+    return _errorResult(
+      'Error getting element declaration signatures by name: $e',
     );
   }
 }

@@ -21,6 +21,27 @@ import '../utils/sdk.dart';
 /// Mix this in to any MCPServer to add support for analyzing Dart files.
 base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     implements SdkSupport {
+  /// Helper to create error result for missing arguments
+  static CallToolResult _missingArgError(String argName) {
+    return CallToolResult(
+      content: [TextContent(text: 'Missing required argument `$argName`.')],
+      isError: true,
+    );
+  }
+
+  /// Helper to create error result with custom message
+  static CallToolResult _errorResult(String message) {
+    return CallToolResult(content: [TextContent(text: message)], isError: true);
+  }
+
+  /// Helper to create success result with message
+  static CallToolResult _successResult(String message) {
+    return CallToolResult(
+      content: [TextContent(text: message)],
+      isError: false,
+    );
+  }
+
   /// Analysis context collections per root
   final Map<String, AnalysisContextCollection> _analysisCollections = {};
 
@@ -211,10 +232,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   Future<CallToolResult> _getDartFileOutline(CallToolRequest request) async {
     final uriString = request.arguments?['uri'] as String?;
     if (uriString == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `uri`.')],
-        isError: true,
-      );
+      return _missingArgError('uri');
     }
 
     // Check if this is a dart: or package: URI that needs conversion
@@ -237,13 +255,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         r'resolved to file path:\s*(.+)',
       ).firstMatch(resultText);
       if (pathMatch == null) {
-        return CallToolResult(
-          content: [
-            TextContent(
-              text: 'Could not extract file path from URI conversion result.',
-            ),
-          ],
-          isError: true,
+        return _errorResult(
+          'Could not extract file path from URI conversion result.',
         );
       }
 
@@ -265,14 +278,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   Future<CallToolResult> _convertDartUri(CallToolRequest request) async {
     // Check if we have any analysis collections
     if (_analysisCollections.isEmpty) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text:
-                'No analysis collections available. Make sure roots are set and Dart SDK is available.',
-          ),
-        ],
-        isError: true,
+      return _errorResult(
+        'No analysis collections available. Make sure roots are set and Dart SDK is available.',
       );
     }
 
@@ -281,13 +288,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
       final context = _analysisCollections.values.first.contexts.first;
       return uri_converter.convertDartUriWithContext(request, this, context);
     } catch (e) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text: 'Error accessing analysis context for URI conversion: $e',
-          ),
-        ],
-        isError: true,
+      return _errorResult(
+        'Error accessing analysis context for URI conversion: $e',
       );
     }
   }
@@ -300,17 +302,11 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     final uriString = request.arguments?['uri'] as String?;
 
     if (symbolName == null || symbolName.isEmpty) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `name`.')],
-        isError: true,
-      );
+      return _missingArgError('name');
     }
 
     if (uriString == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `uri`.')],
-        isError: true,
-      );
+      return _missingArgError('uri');
     }
 
     // Check if this is a dart: or package: URI that needs conversion
@@ -333,13 +329,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
         r'resolved to file path:\s*(.+)',
       ).firstMatch(resultText);
       if (pathMatch == null) {
-        return CallToolResult(
-          content: [
-            TextContent(
-              text: 'Could not extract file path from URI conversion result.',
-            ),
-          ],
-          isError: true,
+        return _errorResult(
+          'Could not extract file path from URI conversion result.',
         );
       }
 
@@ -371,10 +362,7 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
   ) async {
     final uriString = request.arguments?['uri'] as String?;
     if (uriString == null) {
-      return CallToolResult(
-        content: [TextContent(text: 'Missing required argument `uri`.')],
-        isError: true,
-      );
+      return _missingArgError('uri');
     }
 
     // Convert URI to file path
@@ -383,14 +371,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
 
     // Check if we have any analysis collections
     if (_analysisCollections.isEmpty) {
-      return CallToolResult(
-        content: [
-          TextContent(
-            text:
-                'No analysis collections available. Make sure roots are set and Dart SDK is available.',
-          ),
-        ],
-        isError: true,
+      return _errorResult(
+        'No analysis collections available. Make sure roots are set and Dart SDK is available.',
       );
     }
 
@@ -409,14 +391,8 @@ base mixin DartFileAnalyzerSupport on ToolsSupport, RootsTrackingSupport
     // If we get here, no collection could handle the file
     // Return a success result with "No element found" message instead of an error
     // This matches the expected behavior for invalid/nonexistent files
-    return CallToolResult(
-      content: [
-        TextContent(
-          text:
-              'No element found at the specified location. The file may not exist or may not be under any analysis root.',
-        ),
-      ],
-      isError: false,
+    return _successResult(
+      'No element found at the specified location. The file may not exist or may not be under any analysis root.',
     );
   }
 

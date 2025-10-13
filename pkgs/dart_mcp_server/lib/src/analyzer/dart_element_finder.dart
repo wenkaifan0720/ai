@@ -5,6 +5,7 @@
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/element/element2.dart';
 // ignore: implementation_imports
 import 'package:analyzer/src/dart/ast/element_locator.dart';
@@ -188,83 +189,61 @@ void _findSymbolMatches(
   String symbolName,
   List<LocationInfo> locations,
 ) {
-  // Check if this node represents a symbol with the target name
-  String? nodeName;
-  int? nameOffset;
-
-  if (node is ClassDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is MethodDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is FunctionDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is VariableDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is FieldDeclaration) {
-    for (final variable in node.fields.variables) {
-      if (variable.name.lexeme == symbolName) {
-        final pos = _getLineColumnFromOffset(content, variable.name.offset);
-        if (pos != null) {
-          locations.add(LocationInfo(line: pos.line, column: pos.column));
-        }
-      }
-    }
-  } else if (node is ConstructorDeclaration) {
-    nodeName = node.name?.lexeme;
-    if (node.name != null) {
-      nameOffset = node.name!.offset;
-    }
-  } else if (node is EnumDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is MixinDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is ExtensionDeclaration) {
-    nodeName = node.name?.lexeme;
-    if (node.name != null) {
-      nameOffset = node.name!.offset;
-    }
-  } else if (node is TypeAlias) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is ExtensionTypeDeclaration) {
-    nodeName = node.name.lexeme;
-    nameOffset = node.name.offset;
-  } else if (node is NamedType) {
-    // NamedType nodes represent type references (e.g., "Widget" in "Widget build()")
-    // The name is stored as a Token in childEntities, not as an AstNode child
-    // So we need to check the token directly
-    for (final entity in node.childEntities) {
-      if (entity.toString() == symbolName) {
-        final pos = _getLineColumnFromOffset(content, entity.offset);
-        if (pos != null) {
-          locations.add(LocationInfo(line: pos.line, column: pos.column));
-        }
-        break; // Found the match, no need to continue
-      }
-    }
-  }
-
-  // Handle all identifier references (including those in expressions)
-  if (node is SimpleIdentifier && node.name == symbolName) {
-    // Handle identifier references
-    final pos = _getLineColumnFromOffset(content, node.offset);
+  // Helper to add a location if the position is valid
+  void addLocationAtOffset(int offset) {
+    final pos = _getLineColumnFromOffset(content, offset);
     if (pos != null) {
       locations.add(LocationInfo(line: pos.line, column: pos.column));
     }
   }
 
-  // If we found a matching declaration name, use the name's offset for precision
-  if (nodeName == symbolName && nameOffset != null) {
-    final pos = _getLineColumnFromOffset(content, nameOffset);
-    if (pos != null) {
-      locations.add(LocationInfo(line: pos.line, column: pos.column));
+  // Helper to check named declarations (classes, methods, functions, etc.)
+  void checkNamedDeclaration(Token name) {
+    if (name.lexeme == symbolName) {
+      addLocationAtOffset(name.offset);
     }
+  }
+
+  // Handle different node types
+  switch (node) {
+    case ClassDeclaration(:var name):
+    case MethodDeclaration(:var name):
+    case FunctionDeclaration(:var name):
+    case VariableDeclaration(:var name):
+    case EnumDeclaration(:var name):
+    case MixinDeclaration(:var name):
+    case TypeAlias(:var name):
+    case ExtensionTypeDeclaration(:var name):
+      checkNamedDeclaration(name);
+
+    case ConstructorDeclaration(:var name?):
+    case ExtensionDeclaration(:var name?):
+      checkNamedDeclaration(name);
+
+    case FieldDeclaration(:var fields):
+      // Fields can contain multiple variables
+      for (final variable in fields.variables) {
+        checkNamedDeclaration(variable.name);
+      }
+
+    case NamedType():
+      // Type references (e.g., "Widget" in "Widget build()")
+      final nameToken = node.name2;
+      if (nameToken is Token && nameToken.lexeme == symbolName) {
+        addLocationAtOffset(nameToken.offset);
+      }
+      // Also check import prefix (e.g., "prefix.Widget")
+      final prefix = node.importPrefix;
+      if (prefix != null && prefix.name.lexeme == symbolName) {
+        addLocationAtOffset(prefix.name.offset);
+      }
+
+    case SimpleIdentifier(:var name) when name == symbolName:
+      // Identifier references (in expressions, etc.)
+      addLocationAtOffset(node.offset);
+
+    default:
+      break;
   }
 
   // Recursively search child nodes
